@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "status": "SELECTED_PRODUCTION",
+  "model": "google/madlad400-3b-mt",
+  "revision": "fa184c675da0b5c9e1c8694fccd4e12e2d422094",
+  "translator_ref": "google/madlad400-3b-mt-q4k@sha256:ea6e5531a3e95213c7f0635988d119e078a655c09306e47851e15d4c0c3f9c37",
+  "license": "Apache-2.0",
+  "architecture": "T5ForConditionalGeneration",
+  "declared_language_count": 419,
+  "selected_at": "2026-09-25",
+  "selection_policy": "QUALITY_FIRST_BEST_MEASURED_WITH_RECHECK",
+  "selection_evidence": {
+    "comparison_report": "sha256:6c8abc8a57d531188cc48ddad5abd6aa9fc46d72f42fda991a20ae6479aec2b4",
+    "case_count": 15,
+    "language_count": 5,
+    "semantic_review_acceptable_cases": 15,
+    "known_semantic_failures": 0,
+    "wall_milliseconds": 90140,
+    "mean_profile_milliseconds": 5979,
+    "uncertain_result": "RECHECK"
+  },
+  "selected_report": "sha256:6c8abc8a57d531188cc48ddad5abd6aa9fc46d72f42fda991a20ae6479aec2b4",
+  "files": [
+    {"path": "added_tokens.json", "size": 4, "sha256": "d914176fd50bd7f565700006a31aa97b79d3ad17cee20c8e5ff2061d5cb74817"},
+    {"path": "config.json", "size": 749, "sha256": "cad399cab799b99409a6ec2d90d72552257c2bb752861261d2016691e0643e7c"},
+    {"path": "generation_config.json", "size": 142, "sha256": "0849b38987568ccfe4ebefc22bbda1cec4bee01c345e93bfab207d4692b0a1d5"},
+    {"path": "model-q4k.gguf", "size": 1654597280, "sha256": "ea6e5531a3e95213c7f0635988d119e078a655c09306e47851e15d4c0c3f9c37"},
+    {"path": "special_tokens_map.json", "size": 414, "sha256": "7f79f1d5063d56c4b980eec0692f3c7429bdef335071d34e566bd00fd4b5e3e0"},
+    {"path": "spiece.model", "size": 4427844, "sha256": "ef11ac9a22c7503492f56d48dce53be20e339b63605983e9f27d2cd0e0f3922c"},
+    {"path": "tokenizer.json", "size": 16629031, "sha256": "a2799ccc696b752ba00c34f58726bfe253a04921ceb6cfc620400f560474790b"},
+    {"path": "tokenizer_config.json", "size": 830, "sha256": "641fc660745306dfb935f666a68f8bc10a44c39241cfb357be518fda8c09662d"}
+  ]
+}

@@ -1,0 +1,88 @@
+name: ${AELEV_TRANSLATOR_COMPOSE_PROJECT:-aelev-translator-service}
+
+x-image: &image
+  image: ${AELEV_TRANSLATOR_IMAGE:-aelev/translator-service:local}
+  build:
+    context: .
+    target: translator-runtime
+
+x-environment: &environment
+  AELEV_ENVIRONMENT: ${AELEV_ENVIRONMENT:-local}
+  AELEV_TRANSLATOR_DATABASE_URL: ${AELEV_TRANSLATOR_DATABASE_URL:?set the owned translator PostgreSQL URL}
+  AELEV_KAFKA_BOOTSTRAP_SERVERS: ${AELEV_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+  AELEV_KAFKA_SECURITY_PROTOCOL: ${AELEV_KAFKA_SECURITY_PROTOCOL:-PLAINTEXT}
+  AELEV_KAFKA_CA_PATH: ${AELEV_KAFKA_CA_PATH:-}
+  AELEV_KAFKA_CLIENT_CERT_PATH: ${AELEV_KAFKA_CLIENT_CERT_PATH:-}
+  AELEV_KAFKA_CLIENT_KEY_PATH: ${AELEV_KAFKA_CLIENT_KEY_PATH:-}
+  AELEV_TRANSLATOR_SOCKET_PATH: /run/aelev-translator/translator.sock
+
+x-role: &role
+  <<: *image
+  environment: *environment
+  depends_on:
+    migrator: {condition: service_completed_successfully}
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 256m
+  cpus: 0.25
+  networks: [data, events]
+
+services:
+  migrator:
+    <<: *image
+    command: ["alembic", "upgrade", "head"]
+    environment: *environment
+    restart: "no"
+    networks: [data]
+
+  model:
+    <<: *image
+    command: ["python", "-m", "translator_service.madlad_translation_provider", "serve"]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    security_opt: [no-new-privileges:true]
+    environment:
+      AELEV_TRANSLATOR_BATCH_SIZE: "1"
+      AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS: "240"
+      AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS: "180"
+    volumes: [model-socket:/run/aelev-translator]
+    network_mode: none
+    mem_limit: ${AELEV_TRANSLATOR_MODEL_MEMORY:-4g}
+    cpus: ${AELEV_TRANSLATOR_MODEL_CPUS:-2}
+    healthcheck:
+      test: ["CMD", "python", "-m", "translator_service.translator_healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  consumer:
+    <<: *role
+    command: ["python", "-m", "translator_service.runtime", "consumer"]
+
+  worker:
+    <<: *role
+    command: ["python", "-m", "translator_service.runtime", "worker"]
+    volumes: [model-socket:/run/aelev-translator:ro]
+    networks: [data]
+    depends_on:
+      migrator: {condition: service_completed_successfully}
+      model: {condition: service_healthy}
+    stop_grace_period: 250s
+
+  outbox:
+    <<: *role
+    command: ["python", "-m", "translator_service.runtime", "outbox"]
+
+networks:
+  data:
+    name: ${AELEV_TRANSLATOR_DATA_NETWORK:-aelev-translator-data}
+    external: true
+  events:
+    name: ${AELEV_EVENTS_NETWORK:-aelev-events}
+    external: true
+
+volumes:
+  model-socket:

@@ -1,0 +1,5 @@
+# Historical base-screening deployment; not an active build recipe.
+ARG BASE_IMAGE=aelev/web-discovery-translator@sha256:fc95c417163b94ec9d7d9d4de3f678e857d5a5cc6f8ed860d9e0a3464f301f5e
+FROM ${BASE_IMAGE}
+COPY services/base-screening/src /opt/aelev/src
+CMD ["python", "-m", "base_screening.madlad_translation_provider", "serve"]
