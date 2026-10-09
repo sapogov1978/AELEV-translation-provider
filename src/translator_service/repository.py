@@ -4,14 +4,14 @@ import json
 import uuid
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import URL, create_engine, text
 
 from translator_service.contracts import digest, parse, result_bytes
 from translator_service.schema import verify_schema
 
 
 class Repository:
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str | URL) -> None:
         self.engine = create_engine(
             url,
             pool_size=2,
@@ -23,14 +23,22 @@ class Repository:
         )
         verify_schema(self.engine)
 
-    def accept(self, raw: bytes) -> None:
+    def accept(self, raw: bytes, priority: int = 100) -> None:
+        if priority not in {0, 100}:
+            raise ValueError("TRANSLATION_PRIORITY_INVALID")
         event = parse(raw, "TranslationRequested")
         request_id = event["data"]["request_id"]
         with self.engine.begin() as connection:
             connection.execute(
-                text("""INSERT INTO translation_job(request_id,request_digest,payload)
-                VALUES(:id,:digest,:raw) ON CONFLICT DO NOTHING"""),
-                {"id": request_id, "digest": digest(raw), "raw": raw},
+                text("""INSERT INTO translation_job
+                (request_id,request_digest,payload,priority)
+                VALUES(:id,:digest,:raw,:priority) ON CONFLICT DO NOTHING"""),
+                {
+                    "id": request_id,
+                    "digest": digest(raw),
+                    "raw": raw,
+                    "priority": priority,
+                },
             )
             row = (
                 connection.execute(
@@ -43,6 +51,11 @@ class Repository:
             )
             if row["request_digest"] != digest(raw):
                 raise ValueError("TRANSLATION_REQUEST_ID_CONFLICT")
+            connection.execute(
+                text("""UPDATE translation_job SET priority=LEAST(priority,:priority)
+                WHERE request_id=:id AND state IN ('PENDING','RUNNING')"""),
+                {"id": request_id, "priority": priority},
+            )
             if row["state"] in {"SUCCEEDED", "FAILED"}:
                 connection.execute(
                     text("""UPDATE translation_outbox SET state='PENDING'
@@ -50,26 +63,38 @@ class Repository:
                     {"id": request_id},
                 )
 
-    def lease(self) -> dict[str, Any] | None:
+    def lease(self, high_priority_burst: int = 4) -> dict[str, Any] | None:
+        if high_priority_burst < 1:
+            raise ValueError("TRANSLATION_PRIORITY_BURST_INVALID")
         token = str(uuid.uuid4())
         with self.engine.begin() as connection:
-            if (
+            control = (
                 connection.execute(
-                    text("SELECT desired_state FROM translation_control FOR SHARE")
-                ).scalar_one()
-                != "RUNNING"
-            ):
+                    text(
+                        "SELECT desired_state,priority_streak "
+                        "FROM translation_control FOR UPDATE"
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            if control["desired_state"] != "RUNNING":
                 return None
+            prefer_normal = control["priority_streak"] >= high_priority_burst
             row = (
                 connection.execute(
-                    text("""SELECT request_id,payload,request_digest
+                    text("""SELECT request_id,payload,request_digest,priority
                 FROM translation_job WHERE
                 (state='PENDING' AND available_at<=now()
                  OR state='RUNNING' AND lease_until<=now())
                 AND EXISTS(SELECT 1 FROM translation_control
                            WHERE desired_state='RUNNING')
-                ORDER BY available_at,created_at,request_id
-                FOR UPDATE SKIP LOCKED LIMIT 1""")
+                ORDER BY
+                  CASE WHEN :prefer_normal AND priority=100 THEN 0
+                       WHEN NOT :prefer_normal AND priority=0 THEN 0 ELSE 1 END,
+                  priority,available_at,created_at,request_id
+                FOR UPDATE SKIP LOCKED LIMIT 1"""),
+                    {"prefer_normal": prefer_normal},
                 )
                 .mappings()
                 .first()
@@ -83,7 +108,39 @@ class Repository:
                 WHERE request_id=:id"""),
                 {"id": row["request_id"], "token": token},
             )
+            connection.execute(
+                text(
+                    "UPDATE translation_control SET priority_streak="
+                    "CASE WHEN :priority=0 THEN priority_streak+1 ELSE 0 END"
+                ),
+                {"priority": row["priority"]},
+            )
             return {**row, "token": token}
+
+    def status(self) -> dict[str, Any]:
+        """Return aggregate operational state without request data or identities."""
+        with self.engine.connect() as connection:
+            control = dict(
+                connection.execute(
+                    text(
+                        "SELECT desired_state,revision,priority_streak "
+                        "FROM translation_control"
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            jobs: dict[str, int] = {}
+            rows = connection.execute(
+                text(
+                    "SELECT state,priority,count(*) AS count FROM translation_job "
+                    "GROUP BY state,priority"
+                )
+            ).mappings()
+            for row in rows:
+                queue = "priority" if row["priority"] == 0 else "normal"
+                jobs[f"{row['state']}:{queue}"] = int(row["count"])
+            return {"control": control, "jobs": jobs}
 
     def complete(self, lease: dict[str, Any], response: dict[str, Any]) -> bool:
         raw = result_bytes(

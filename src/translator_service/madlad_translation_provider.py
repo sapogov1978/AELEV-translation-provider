@@ -244,6 +244,21 @@ class MadladTranslationEngine:
             warnings.append("UNCHANGED_OUTPUT")
         return translated, tuple(warnings)
 
+    def translate_text(
+        self, request: EvidenceTranslationRequest
+    ) -> tuple[str, tuple[str, ...]]:
+        """Translate the complete bounded text without client-specific summarizing."""
+        if request.source_language == request.target_language:
+            return request.text, ()
+        segments = _evidence_segments(request.text)
+        translated = "\n".join(
+            self._translate(list(segments), target=request.target_language)
+        ).strip()
+        warnings = ["MACHINE_TRANSLATION_UNVERIFIED"]
+        if translated.casefold() == request.text.strip().casefold():
+            warnings.append("UNCHANGED_OUTPUT")
+        return translated, tuple(warnings)
+
     def _translate(
         self,
         values: list[str],
@@ -419,6 +434,31 @@ def create_app(engine: MadladTranslationEngine) -> FastAPI:
                 payload, expected_translator_ref=engine.translator_ref
             )
             translated_text, warnings = engine.translate_evidence(request)
+        except TranslatorConfigurationError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except TranslatorRuntimeRequestError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except TimeoutError as error:
+            raise HTTPException(
+                status_code=503, detail="TRANSLATOR_UNAVAILABLE"
+            ) from error
+        return {
+            "schema_version": "1.0.0",
+            "translator_ref": engine.translator_ref,
+            "source_language": request.source_language,
+            "target_language": request.target_language,
+            "source_digest": request.source_digest,
+            "translated_text": translated_text,
+            "warnings": list(warnings),
+        }
+
+    @app.post("/v1/translate-text")
+    def translate_text(payload: Annotated[object, Body()]) -> dict[str, object]:
+        try:
+            request = parse_evidence_translation_request(
+                payload, expected_translator_ref=engine.translator_ref
+            )
+            translated_text, warnings = engine.translate_text(request)
         except TranslatorConfigurationError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except TranslatorRuntimeRequestError as error:

@@ -9,14 +9,14 @@ import sys
 import threading
 import time
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from confluent_kafka import Consumer, KafkaError, Producer
 from jsonschema import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from translator_service.contracts import REQUEST_TOPIC, RESULT_TOPIC
+from translator_service.contracts import RESULT_TOPIC
+from translator_service.environment import database_sslmode, database_url
 from translator_service.repository import Repository
 
 LOGGER = logging.getLogger(__name__)
@@ -49,27 +49,33 @@ def kafka_configuration() -> dict[str, Any]:
     config["security.protocol"] = security
     if security == "SSL":
         for target, source in {
-            "ssl.ca.location": "AELEV_KAFKA_CA_PATH",
-            "ssl.certificate.location": "AELEV_KAFKA_CLIENT_CERT_PATH",
-            "ssl.key.location": "AELEV_KAFKA_CLIENT_KEY_PATH",
+            "ssl.ca.location": "AELEV_KAFKA_CA_FILE",
+            "ssl.certificate.location": "AELEV_KAFKA_CLIENT_CERT_FILE",
+            "ssl.key.location": "AELEV_KAFKA_CLIENT_KEY_FILE",
         }.items():
-            config[target] = os.environ[source]
-            if not config[target]:
+            filename = os.environ[source]
+            if (
+                filename == "NONE"
+                or not filename
+                or os.path.basename(filename) != filename
+            ):
                 raise RuntimeError("TRANSLATOR_KAFKA_IDENTITY_MISSING")
+            config[target] = os.path.join(
+                os.environ["AELEV_TRANSLATOR_SECRET_ROOT"], filename
+            )
     return config
 
 
 def repository() -> Repository:
-    value = os.environ["AELEV_TRANSLATOR_DATABASE_URL"]
-    if os.environ.get("AELEV_ENVIRONMENT", "production") != "local" and parse_qs(
-        urlsplit(value).query
-    ).get("sslmode", [""])[0] not in {
+    if os.environ.get(
+        "AELEV_ENVIRONMENT", "production"
+    ) != "local" and database_sslmode() not in {
         "require",
         "verify-ca",
         "verify-full",
     }:
         raise RuntimeError("TRANSLATOR_DATABASE_TLS_REQUIRED")
-    return Repository(value)
+    return Repository(database_url())
 
 
 def compute(data: dict[str, Any]) -> dict[str, Any]:
@@ -90,7 +96,11 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
         route = "/v1/localize-profile"
     else:
         payload.update({"text": data["text"], "source_digest": data["source_digest"]})
-        route = "/v1/translate-evidence"
+        route = (
+            "/v1/translate-evidence"
+            if data["operation"] == "OPERATOR_REVIEW"
+            else "/v1/translate-text"
+        )
     with httpx.Client(
         transport=httpx.HTTPTransport(uds=os.environ["AELEV_TRANSLATOR_SOCKET_PATH"]),
         base_url="http://private-model",
@@ -189,32 +199,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, handlers=[handler])
     repo = repository()
     if args.role in {"health", "status"}:
-        from sqlalchemy import text
-
-        with repo.engine.connect() as connection:
-            if args.role == "status":
-                sys.stdout.write(
-                    json.dumps(
-                        {
-                            "control": dict(
-                                connection.execute(
-                                    text("SELECT * FROM translation_control")
-                                )
-                                .mappings()
-                                .one()
-                            ),
-                            "jobs": {
-                                str(row[0]): int(row[1])
-                                for row in connection.execute(
-                                    text(
-                                        "SELECT state,count(*) FROM translation_job "
-                                        "GROUP BY state"
-                                    )
-                                ).all()
-                            },
-                        }
-                    )
-                )
+        if args.role == "status":
+            sys.stdout.write(json.dumps(repo.status()))
         return
     if args.role == "control":
         sys.stdout.write(
@@ -244,15 +230,13 @@ def main() -> None:
         client = Consumer(
             {
                 **kafka_configuration(),
-                "group.id": os.environ.get(
-                    "AELEV_TRANSLATOR_KAFKA_GROUP", "aelev-translator-service-v1"
-                ),
+                "group.id": os.environ["AELEV_TRANSLATOR_KAFKA_GROUP"],
                 "enable.auto.commit": False,
                 "auto.offset.reset": "earliest",
                 "isolation.level": "read_committed",
             }
         )
-        client.subscribe([REQUEST_TOPIC])
+        client.subscribe([os.environ["AELEV_TRANSLATOR_REQUEST_TOPIC"]])
     if args.role == "outbox":
         client = Producer(
             {**kafka_configuration(), "enable.idempotence": True, "acks": "all"}
@@ -270,7 +254,9 @@ def main() -> None:
                         raise RuntimeError("TRANSLATOR_KAFKA_READ_FAILED")
                     raw = message.value() or b""
                     try:
-                        repo.accept(raw)
+                        repo.accept(
+                            raw, int(os.environ["AELEV_TRANSLATOR_REQUEST_PRIORITY"])
+                        )
                     except (ValueError, ValidationError):
                         repo.quarantine(
                             f"{message.topic()}:{message.partition()}:{message.offset()}",
@@ -282,7 +268,9 @@ def main() -> None:
                     publish_once(repo, client)
                     stopped.wait(1)
                 else:
-                    lease = repo.lease()
+                    lease = repo.lease(
+                        int(os.environ["AELEV_TRANSLATOR_HIGH_PRIORITY_BURST"])
+                    )
                     if lease is None:
                         stopped.wait(1)
                         continue

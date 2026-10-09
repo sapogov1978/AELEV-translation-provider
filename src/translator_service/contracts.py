@@ -11,7 +11,8 @@ from typing import Any, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-REQUEST_TOPIC = "translation.requests.v1"
+NORMAL_REQUEST_TOPIC = "translation.requests.v1"
+PRIORITY_REQUEST_TOPIC = "translation.requests.priority.v1"
 RESULT_TOPIC = "translation.results.v1"
 
 
@@ -48,8 +49,6 @@ def parse(raw: bytes, name: str) -> dict[str, Any]:
         if event["time"] != data["recorded_at"]:
             raise ValueError("TRANSLATION_EVENT_TIME_MISMATCH")
         if name == "TranslationRequested":
-            if event["source"] != "urn:aelev:base-screening":
-                raise ValueError("TRANSLATION_REQUEST_OWNER_MISMATCH")
             if digest(data["text"].encode()) != data["source_digest"]:
                 raise ValueError("TRANSLATION_SOURCE_DIGEST_MISMATCH")
             if data["operation"] == "PROFILE_UNIT" and len(data["text"]) > 500:

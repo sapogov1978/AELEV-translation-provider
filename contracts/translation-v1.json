@@ -115,97 +115,6 @@
           "properties": {
             "data": {
               "additionalProperties": false,
-              "allOf": [
-                {
-                  "properties": {
-                    "provenance": {
-                      "allOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "input_refs": {
-                              "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "digest": {
-                                    "pattern": "^sha256:[0-9a-f]{64}$",
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "maxLength": 256,
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "version": {
-                                    "maxLength": 128,
-                                    "minLength": 1,
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "version"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array",
-                              "uniqueItems": true
-                            },
-                            "manifest_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            },
-                            "manifest_urn": {
-                              "pattern": "^urn:[a-z0-9][a-z0-9-]{0,31}:.+$",
-                              "type": "string"
-                            },
-                            "owner_context": {
-                              "enum": [
-                                "DISCOVERY_REGISTRY",
-                                "SENSOR_CONNECTOR_BUILDER",
-                                "ZONE_INGESTION",
-                                "WEB_DISCOVERY_CRAWLER",
-                                "TRANSLATOR_SERVICE",
-                                "CONNECTOR_BUILDER",
-                                "CONNECTOR_REVIEW_CERTIFICATION",
-                                "SENSOR_RUNTIME",
-                                "MARKET_BRAIN",
-                                "PROJECTION_ENGINE",
-                                "INVESTMENT_BRAIN",
-                                "EXECUTION_BRAIN",
-                                "SECURITY_PLATFORM"
-                              ]
-                            },
-                            "producer_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "producer_version": {
-                              "maxLength": 128,
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "owner_context",
-                            "producer_id",
-                            "producer_version",
-                            "input_refs"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "properties": {
-                            "owner_context": {
-                              "const": "TRANSLATOR_SERVICE"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              ],
               "properties": {
                 "error_code": {
                   "maxLength": 128,
@@ -251,21 +160,7 @@
                       "type": "string"
                     },
                     "owner_context": {
-                      "enum": [
-                        "DISCOVERY_REGISTRY",
-                        "SENSOR_CONNECTOR_BUILDER",
-                        "ZONE_INGESTION",
-                        "WEB_DISCOVERY_CRAWLER",
-                        "TRANSLATOR_SERVICE",
-                        "CONNECTOR_BUILDER",
-                        "CONNECTOR_REVIEW_CERTIFICATION",
-                        "SENSOR_RUNTIME",
-                        "MARKET_BRAIN",
-                        "PROJECTION_ENGINE",
-                        "INVESTMENT_BRAIN",
-                        "EXECUTION_BRAIN",
-                        "SECURITY_PLATFORM"
-                      ]
+                      "const": "TRANSLATOR_SERVICE"
                     },
                     "producer_id": {
                       "minLength": 1,
@@ -474,100 +369,10 @@
           "properties": {
             "data": {
               "additionalProperties": false,
-              "allOf": [
-                {
-                  "properties": {
-                    "provenance": {
-                      "allOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "input_refs": {
-                              "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "digest": {
-                                    "pattern": "^sha256:[0-9a-f]{64}$",
-                                    "type": "string"
-                                  },
-                                  "id": {
-                                    "maxLength": 256,
-                                    "minLength": 1,
-                                    "type": "string"
-                                  },
-                                  "version": {
-                                    "maxLength": 128,
-                                    "minLength": 1,
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "version"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array",
-                              "uniqueItems": true
-                            },
-                            "manifest_digest": {
-                              "pattern": "^sha256:[0-9a-f]{64}$",
-                              "type": "string"
-                            },
-                            "manifest_urn": {
-                              "pattern": "^urn:[a-z0-9][a-z0-9-]{0,31}:.+$",
-                              "type": "string"
-                            },
-                            "owner_context": {
-                              "enum": [
-                                "DISCOVERY_REGISTRY",
-                                "SENSOR_CONNECTOR_BUILDER",
-                                "ZONE_INGESTION",
-                                "WEB_DISCOVERY_CRAWLER",
-                                "TRANSLATOR_SERVICE",
-                                "CONNECTOR_BUILDER",
-                                "CONNECTOR_REVIEW_CERTIFICATION",
-                                "SENSOR_RUNTIME",
-                                "MARKET_BRAIN",
-                                "PROJECTION_ENGINE",
-                                "INVESTMENT_BRAIN",
-                                "EXECUTION_BRAIN",
-                                "SECURITY_PLATFORM"
-                              ]
-                            },
-                            "producer_id": {
-                              "minLength": 1,
-                              "type": "string"
-                            },
-                            "producer_version": {
-                              "maxLength": 128,
-                              "minLength": 1,
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "owner_context",
-                            "producer_id",
-                            "producer_version",
-                            "input_refs"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "properties": {
-                            "owner_context": {
-                              "const": "WEB_DISCOVERY_CRAWLER"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              ],
               "properties": {
                 "operation": {
                   "enum": [
+                    "TRANSLATE_TEXT",
                     "PROFILE_UNIT",
                     "OPERATOR_REVIEW"
                   ]
@@ -612,21 +417,8 @@
                       "type": "string"
                     },
                     "owner_context": {
-                      "enum": [
-                        "DISCOVERY_REGISTRY",
-                        "SENSOR_CONNECTOR_BUILDER",
-                        "ZONE_INGESTION",
-                        "WEB_DISCOVERY_CRAWLER",
-                        "TRANSLATOR_SERVICE",
-                        "CONNECTOR_BUILDER",
-                        "CONNECTOR_REVIEW_CERTIFICATION",
-                        "SENSOR_RUNTIME",
-                        "MARKET_BRAIN",
-                        "PROJECTION_ENGINE",
-                        "INVESTMENT_BRAIN",
-                        "EXECUTION_BRAIN",
-                        "SECURITY_PLATFORM"
-                      ]
+                      "pattern": "^[A-Z][A-Z0-9_]{1,63}$",
+                      "type": "string"
                     },
                     "producer_id": {
                       "minLength": 1,
@@ -703,5 +495,5 @@
       ]
     }
   },
-  "source_digest": "sha256:e2a31dff366c6cec2f3d34d603a526e6a8d7909272651f0888653642aae2d80f"
+  "source_digest": "sha256:52f6057987eaafa1b3b8ddc99e817b554f5574053dc8d47741bcb0228c14b113"
 }

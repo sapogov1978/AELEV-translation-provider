@@ -29,7 +29,7 @@ RUN --mount=type=cache,id=aelev-translator-poetry,target=/root/.cache/pypoetry \
 ENV PYTHONPATH=/opt/aelev/src AELEV_TRANSLATION_CONTRACT_ROOT=/opt/aelev/contracts \
     VIRTUAL_ENV=/opt/aelev/.venv PATH=/opt/aelev/.venv/bin:$PATH
 COPY src ./src
-COPY tests ./tests
+COPY --from=translator_tests . ./test
 COPY typings ./typings
 COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini
@@ -79,17 +79,6 @@ ADD --chown=10001:10001 --checksum=sha256:7f79f1d5063d56c4b980eec0692f3c7429bdef
 ADD --chown=10001:10001 --checksum=sha256:ef11ac9a22c7503492f56d48dce53be20e339b63605983e9f27d2cd0e0f3922c https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/spiece.model /opt/aelev/model/spiece.model
 ADD --chown=10001:10001 --checksum=sha256:a2799ccc696b752ba00c34f58726bfe253a04921ceb6cfc620400f560474790b https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer.json /opt/aelev/model/tokenizer.json
 ADD --chown=10001:10001 --checksum=sha256:641fc660745306dfb935f666a68f8bc10a44c39241cfb357be518fda8c09662d https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer_config.json /opt/aelev/model/tokenizer_config.json
-COPY translator.lock.json ./translator.lock.json
-COPY src ./src
-COPY contracts ./contracts
-COPY alembic.ini ./alembic.ini
-COPY alembic ./alembic
-RUN python -m translator_service.madlad_translation_provider verify-model
-USER 10001:10001
-CMD ["python", "-m", "translator_service.madlad_translation_provider", "serve"]
-
-FROM madlad-translator-base AS translator-runtime-local-artifacts
-COPY --chown=10001:10001 --from=translator_model / /opt/aelev/model/
 COPY translator.lock.json ./translator.lock.json
 COPY src ./src
 COPY contracts ./contracts

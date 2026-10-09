@@ -1,4 +1,4 @@
-"""Isolated PostgreSQL tests; never use an application database URL."""
+"""Repository tests use only an explicitly isolated PostgreSQL database."""
 
 import json
 import os
@@ -21,7 +21,7 @@ def request(*, value: str = "central bank", identity: str | None = None) -> byte
     event: dict[str, object] = {
         "specversion": "1.0",
         "id": identity,
-        "source": "urn:aelev:base-screening",
+        "source": "urn:aelev:test-client",
         "type": "com.aelev.translation-requested.v1",
         "time": timestamp,
         "subject": "translation/" + identity,
@@ -34,13 +34,13 @@ def request(*, value: str = "central bank", identity: str | None = None) -> byte
             "schema_version": "1.0.0",
             "recorded_at": timestamp,
             "provenance": {
-                "owner_context": "WEB_DISCOVERY_CRAWLER",
-                "producer_id": "base-screening",
+                "owner_context": "TEST_CLIENT",
+                "producer_id": "test-client",
                 "producer_version": "0.1.0",
                 "input_refs": [],
             },
             "request_id": identity,
-            "operation": "PROFILE_UNIT",
+            "operation": "TRANSLATE_TEXT",
             "text": value,
             "source_digest": digest(value.encode()),
             "source_language": "en",
@@ -86,6 +86,16 @@ def test_request_contract_and_digest_are_checked() -> None:
     event["data"]["text"] = "changed"
     with pytest.raises(ValueError, match="DIGEST"):
         parse(json.dumps(event).encode(), "TranslationRequested")
+
+
+def test_contract_accepts_an_independent_technical_client() -> None:
+    event = json.loads(request())
+    event["source"] = "urn:aelev:another-client"
+    event["data"]["provenance"]["owner_context"] = "ANOTHER_CLIENT"
+    event["data"]["provenance"]["producer_id"] = "another-client"
+    assert parse(json.dumps(event).encode(), "TranslationRequested")["source"] == (
+        "urn:aelev:another-client"
+    )
 
 
 def test_duplicate_computes_once_and_replays_exact_saved_result(
@@ -136,6 +146,20 @@ def test_slow_retry_does_not_starve_older_waiting_work(repo: Repository) -> None
         )
     second = repo.lease()
     assert second is not None and second["request_id"] == second_id
+
+
+def test_priority_burst_always_releases_normal_work(repo: Repository) -> None:
+    normal_id = str(uuid.uuid4())
+    repo.accept(request(identity=normal_id), priority=100)
+    priority_ids = [str(uuid.uuid4()) for _ in range(3)]
+    for identity in priority_ids:
+        repo.accept(request(identity=identity), priority=0)
+    first = repo.lease(high_priority_burst=2)
+    second = repo.lease(high_priority_burst=2)
+    third = repo.lease(high_priority_burst=2)
+    assert first is not None and first["request_id"] in priority_ids
+    assert second is not None and second["request_id"] in priority_ids
+    assert third is not None and third["request_id"] == normal_id
 
 
 def test_restore_rejects_valid_but_mismatched_result_lineage(repo: Repository) -> None:

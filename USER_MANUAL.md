@@ -1,22 +1,29 @@
 # Руководство translator-service
 
-Общий инфраструктурный компонент переводит фразы политики и сохранённые страницы, назначенные для оператора. Он не принимает тематические решения, не меняет метки человека и не заменяет операторскую проверку. Готовые локализации и переводы карточек отображает заказчик; вычислитель получает задания и возвращает результаты только через Kafka.
+Общий инфраструктурный компонент выполняет технические задания на перевод и не знает, какой клиент или предметный процесс использует результат. Задания и результаты проходят только через принадлежащие translator-service Kafka topics; HTTP backend предназначен исключительно для эксплуатации.
 
 ## Установка и запуск
 
-Исходники, зависимости, миграции, закреплённые схемы, `compose.yml` и `.env.example` находятся в этом каталоге. Скопируйте локальный шаблон в закрытый `.env`, задайте полный URL собственной БД, Kafka bootstrap servers, TLS-параметры и выбранный образ. Файл с секретами не публикуется. Команды сборки и проверок приведены в [README](README.md); сборка модели может занять значительное время, но это не время выполнения отдельного перевода.
+Исходники, собственная PostgreSQL, миграции, закреплённые схемы, `compose.yml` и `.env.example` находятся в этом каталоге. Создайте файловый пароль по [README](README.md). Обычный запуск автоматически поднимает Kafka из соседней канонической поставки, ждёт её готовности и применяет topics; вручную запускать provisioner не требуется. Секреты не публикуются.
 
 ```sh
+test -f ../kafka/.env || cp ../kafka/.env.example ../kafka/.env
 cp .env.example .env
-docker compose --env-file .env up -d --no-build
+mkdir -p secrets
+openssl rand -out secrets/postgres-password -hex 32
+if [ "$(uname -s)" = Linux ]; then sudo chown 10001:10001 secrets/postgres-password; fi
+chmod 600 secrets/postgres-password
+docker compose --env-file .env up --build -d --wait --wait-timeout 600
 docker compose --env-file .env ps
 ```
 
-`translator-migrator` выполняется до работников и не повторяется бесконечно. Постоянные роли автоматически восстанавливаются после падения, но явная остановка сохраняется. `translator-model` должен стать healthy; `translator-consumer`, `translator-worker` и `translator-outbox` должны работать. Новые задания сохраняются даже при временной недоступности модели. Перезапуск одного работника не требует перезапуска базового отсева, фильтров или зон.
+`translator-migrator` выполняется до рабочих ролей и не повторяется бесконечно. `translator-topic-provisioner` ждёт healthy Kafka, при ошибке соединения повторяется и не пропускает consumer, outbox или API дальше. `translator-model` и `translator-api` должны стать healthy; оба consumer, worker и outbox должны работать. Новые задания сохраняются даже при временной недоступности модели. Перезапуск вычислительной ячейки не требует перезапуска клиентов.
+
+Если Kafka находится на другом сервере, задайте её маршрутизируемые bootstrap servers и TLS-файлы в `.env`, установите локальную Kafka-сеть в режим `external=false` и используйте `docker compose -f compose.remote.yml --env-file .env --profile bundled-database up --build -d --wait`, если PostgreSQL остаётся на узле переводчика. Для принадлежащей этой поставке удалённой PostgreSQL профиль не включается. Эта команда не запускает Kafka на узле переводчика, но рабочие роли не стартуют, а `/readyz` не возвращает успех, пока указанный broker и topics недоступны. Kafka на удалённом узле запускается из собственного каталога и собственного `.env`; Docker Compose одного узла не управляет другим Docker daemon.
 
 ## Что происходит с заданием
 
-`PROFILE_UNIT` содержит одну фразу. `OPERATOR_REVIEW` содержит один ограниченный оригинальный текст для вспомогательного перевода. Английский текст для английского интерфейса заказчик не отправляет. Сначала `consumer` сохраняет запрос, затем `worker` получает ограниченную аренду, `model` вычисляет перевод, а `outbox` публикует сохранённый результат. Повтор готового запроса возвращает тот же ответ без нового вычисления.
+Обычный независимый запрос использует `TRANSLATE_TEXT` и содержит исходный язык, целевой язык и текст. Значения `PROFILE_UNIT` и `OPERATOR_REVIEW` сохранены только для совместимости v1. Срочный запрос публикуется в `translation.requests.priority.v1`, обычный — в `translation.requests.v1`; payload у них одинаков. Соответствующий consumer сохраняет запрос, worker получает ограниченную аренду, model вычисляет перевод, а outbox публикует сохранённый результат. После настроенной серии срочных заданий готовое обычное задание обслуживается обязательно. Повтор готового запроса возвращает тот же ответ без вычисления.
 
 `PENDING` означает ожидание, `RUNNING` — активную попытку, `SUCCEEDED` — готовый результат, `FAILED` — доказуемую ошибку входа или непригодный выход модели. Временный технический сбой автоматически повторяется и не создаёт отменённой карточки. Готовый перевод ещё не доказывает правильность смысла; итоговую проверку локализации выполняет её владелец.
 
@@ -25,14 +32,13 @@ docker compose --env-file .env ps
 Команды выполняются только человеком с разрешённым эксплуатационным доступом к инфраструктуре. CLI не является публичным HTTP-интерфейсом и не даёт доступ к чужим хранилищам. Прочитайте состояние и текущую ревизию:
 
 ```sh
-docker compose --env-file .env exec translator-consumer \
-  python -m translator_service.runtime status
+curl --fail http://127.0.0.1:8096/v1/status
 ```
 
 Чтобы прекратить выдачу новых заданий, сохраните PAUSE с уникальным идентификатором, своей идентичностью, причиной и ожидаемой ревизией. Активная единица может завершиться. Вместо PAUSE используйте RESUME для продолжения; ожидаемую ревизию берите из нового статуса, а не копируйте прежнее число.
 
 ```sh
-docker compose --env-file .env exec translator-consumer \
+docker compose --env-file .env exec translator-priority-consumer \
   python -m translator_service.runtime control \
   --action PAUSE --command-id maintenance-1 --actor operator \
   --expected-revision 1 --rationale planned-maintenance
@@ -44,8 +50,9 @@ RESET возвращает только незавершённую работу 
 
 ```sh
 docker compose --env-file .env logs --tail 30 \
-  translator-consumer translator-worker translator-outbox translator-model
-docker compose --env-file .env exec translator-consumer \
+  translator-priority-consumer translator-normal-consumer \
+  translator-worker translator-outbox translator-model
+docker compose --env-file .env exec translator-priority-consumer \
   python -m translator_service.runtime health
 ```
 
@@ -53,4 +60,4 @@ docker compose --env-file .env exec translator-consumer \
 
 Резервную копию своей БД восстанавливайте в отдельный изолированный экземпляр, без доступа к рабочим topics. Сохраните точные схемы и модель. Проверка `python -m translator_service.runtime verify-restored-state` должна вернуть `VERIFIED`; она не исправляет и не публикует данные. Незавершённые аренды после восстановления повторяются, готовые результаты сохраняются. Порядок и команды изолированной проверки приведены в [README](README.md).
 
-Для адресной штатной остановки из этого каталога используйте `docker compose --env-file .env stop translator-consumer translator-worker translator-outbox translator-model`. Не удаляйте базу, Kafka-журналы или volumes: остановка и сброс процесса не означают удаление истории. Production дополнительно требует защищённого выпуска и инфраструктурной идентичности; локальный PLAINTEXT не переносится в production.
+Для адресной штатной остановки из этого каталога используйте `docker compose --env-file .env stop translator-priority-consumer translator-normal-consumer translator-worker translator-outbox translator-model translator-api`. Не удаляйте БД, Kafka-журналы или volumes: остановка процесса не означает удаление истории. Production требует защищённых endpoints и отдельных identities; локальный PLAINTEXT не переносится в production.

@@ -1,3 +1,5 @@
+"""MADLAD provider behavior tests."""
+
 import json
 from io import StringIO
 from pathlib import Path
@@ -371,6 +373,53 @@ def test_madlad_engine_translates_bounded_operator_evidence(
     assert json.loads(process.stdin.getvalue())["texts"] == [
         "<2ru> Suomen Pankki vastaa rahapolitiikasta."
     ]
+
+
+def test_generic_translation_uses_the_complete_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "translator_service.madlad_translation_provider.verify_model_artifacts",
+        _skip_verify,
+    )
+    monkeypatch.setattr(
+        "translator_service.madlad_translation_provider.subprocess.Popen",
+        _popen,
+    )
+    engine = MadladTranslationEngine(
+        MadladTranslationSettings(
+            model_root=Path("/model"),
+            lock_path=Path("/lock"),
+            socket_path=Path("/run/translator.sock"),
+            translator_ref="google/madlad400-3b-mt-q4k@sha256:" + "a" * 64,
+            artifacts={},
+            batch_size=8,
+        )
+    )
+    captured: list[str] = []
+
+    def translate(
+        values: list[str], *, target: str, max_output_tokens: int | None = None
+    ) -> list[str]:
+        assert target == "ru"
+        assert max_output_tokens is None
+        captured.extend(values)
+        return ["перевод " + value for value in values]
+
+    monkeypatch.setattr(engine, "_translate", translate)
+    source = ("complete source sentence " * 80).strip()
+    translated, warnings = engine.translate_text(
+        EvidenceTranslationRequest(
+            translator_ref=engine.translator_ref,
+            source_language="en",
+            target_language="ru",
+            source_digest="sha256:" + "b" * 64,
+            text=source,
+        )
+    )
+    assert sum(len(value) for value in captured) > 768
+    assert "REPRESENTATIVE_EXCERPT_TRANSLATED" not in warnings
+    assert translated.count("перевод ") == len(captured)
 
 
 def test_madlad_engine_restarts_stopped_runtime_before_translation(

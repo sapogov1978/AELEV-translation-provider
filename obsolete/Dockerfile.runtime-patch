@@ -1,4 +1,4 @@
-# Source-only update from an already verified image of this service, never a neighbor.
+# Historical source-only update; the supported recipe is ../Dockerfile.
 ARG AELEV_TRANSLATOR_RUNTIME_BASE
 FROM ${AELEV_TRANSLATOR_RUNTIME_BASE}
 COPY src /opt/aelev/src

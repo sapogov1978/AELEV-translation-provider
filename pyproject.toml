@@ -29,7 +29,7 @@ ruff = "0.12.11"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests"]
+testpaths = ["test"]
 
 [tool.ruff]
 target-version = "py313"
@@ -39,7 +39,7 @@ line-length = 88
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "test"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
