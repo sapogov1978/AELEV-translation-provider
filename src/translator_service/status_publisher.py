@@ -8,6 +8,7 @@ import os
 from aelev_platform_ui_client import Settings, aggregate, observe, run, timestamp
 
 from translator_service.api import verify_kafka
+from translator_service.api_server import swagger_url
 from translator_service.presence import read
 from translator_service.runtime import repository
 
@@ -26,11 +27,16 @@ COMPONENTS = {
 
 
 def description(cfg: Settings) -> bytes:
+    url = swagger_url()
+    revision = int(os.environ[PREFIX + "UI_DESCRIPTION_REVISION"])
+    if not 1 <= revision <= 9223372036854775807:
+        raise ValueError("TRANSLATOR_UI_REVISION_INVALID")
     return json.dumps(
         {
             "schema_version": 1,
             "module_id": cfg.module_id,
-            "revision": 2,
+            "revision": revision,
+            "swagger_url": url,
             "title": {
                 "ru": "Перевод текстов",
                 "en": "Text translation",
@@ -38,7 +44,11 @@ def description(cfg: Settings) -> bytes:
             "service_kind": "INFRASTRUCTURE",
             "sections": [],
             "components": [
-                {"id": name, "title": {"ru": title, "en": name}}
+                {
+                    "id": name,
+                    "title": {"ru": title, "en": name},
+                    **({"swagger_url": url} if name == "api" else {}),
+                }
                 for name, title in COMPONENTS.items()
             ],
         },

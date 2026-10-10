@@ -37,6 +37,7 @@ mkdir -p secrets
 openssl rand -out secrets/postgres-password -hex 32
 if [ "$(uname -s)" = Linux ]; then sudo chown 10001:10001 secrets/postgres-password; fi
 chmod 600 secrets/postgres-password
+python3 prepare-api-tls.py --local --output runtime/api-pki
 docker compose --env-file .env config
 docker compose --env-file .env up --build -d --wait --wait-timeout 600
 docker compose --env-file .env ps
@@ -114,12 +115,52 @@ Docker Compose управляет только одним Docker daemon и не 
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT` | `8096` | Порт Uvicorn внутри контейнера. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK` | `aelev-infrastructure-translator-ingress` | Отдельная сеть операционного ingress. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK_EXTERNAL` | `false` | Определяет, создаёт ли Compose сеть API или подключает существующую. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL` | `https://localhost:18496` | Точный HTTPS origin операционного API, доступный браузеру оператора; издатель добавляет собственный путь `/docs`. Для удалённого узла задайте его FQDN и порт, совпадающие с SAN сертификата. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS` | `127.0.0.1` | Интерфейс опубликованного HTTPS-порта; для удалённого доступа задайте конкретный адрес узла либо `0.0.0.0` и ограничьте firewall. Это не адрес внутреннего HTTP. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_PORT` | `18496` | HTTPS-порт на узле; должен совпадать с публичным адресом или его явным внешним маршрутом. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT` | `8443` | Отдельный TLS listener в том же процессе `translator-api`; не может совпадать с внутренним HTTP-портом. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT` | `./runtime/api-pki/api-tls` | Каталог собственных `server.crt`, `server.key`, `clients-ca.crt`; Compose монтирует только эти три файла в API и запрещает создание пустых замен. Каталог не должен находиться внутри общего `SECRET_ROOT`, чтобы другим ролям не достался серверный ключ. |
+
+## Swagger операционного API
+
+`translator-api` обслуживает два listener в одном контейнере: прежний частный HTTP для собственных проверок и HTTPS/mTLS для оператора. `/docs` существует только на HTTPS; он показывает те же пять операций чтения, не приватные POST модели. `/openapi.json` генерируется из тех же обработчиков. При отсутствии TLS-файла, недействительной конфигурации или завершении любого listener весь API прекращает работу; plaintext fallback отсутствует. Штатные SIGTERM/SIGINT завершают оба listener. Внутренний host-порт разрешён только на loopback, его прежние пути и ответы сохранены.
+
+Swagger UI 5.33.1, CSS и Apache-2.0 LICENSE доставляются из официального выпуска при сборке с SHA-256 в Dockerfile и затем отдаются с собственного origin. Браузеру не нужны CDN, внешний валидатор или доступ к поставщику модели. CSP запрещает внешние scripts/connections и встраивание; токен оболочки не передаётся, браузерная авторизация не сохраняется JavaScript. Основа: [самостоятельная поставка файлов Swagger в FastAPI](https://fastapi.tiangolo.com/how-to/custom-docs-ui-assets/), [выпуск Swagger UI](https://github.com/swagger-api/swagger-ui/releases/tag/v5.33.1), [TLS-настройки Uvicorn](https://www.uvicorn.org/settings/#https).
+
+HTTPS обязательно требует собственный клиентский сертификат оператора, подписанный явно доверенной `clients-ca.crt` с `clientAuth`. Эта CA должна выдавать только ограниченные удостоверения чтения этого API. Серверу передаются только его ключ/цепочка и открытая CA клиентов: закрытый ключ CA, операторские PEM/PKCS12 и пароль PKCS12 не монтируются ни в API, ни в издатель. mTLS удостоверяет доступ к чтению; административных HTTP-операций здесь нет. Для рабочей среды установите утверждённые серверную цепочку, отдельную CA разрешённых клиентов и операторское удостоверение; файлы и Compose те же, самоподписанный локальный корень не становится автоматически доверенным рабочим корнем.
+
+Для подготовки локального loopback сначала проверьте инструменты:
+
+```sh
+python3 --version
+command -v openssl
+openssl version
+```
+
+Скрипт использует стандартную библиотеку Python, а не пакеты runtime. Нужен OpenSSL 3; он используется только оператором, в Dockerfile устанавливать CLI не требуется. Если его нет, на Debian/Ubuntu выполните `sudo apt-get update` и `sudo apt-get install openssl`; на macOS с установленным Homebrew — `brew install openssl@3` и `export PATH="$(brew --prefix openssl@3)/bin:$PATH"`. Затем повторите проверку версии. Установку нового Python/ОС и изменение рабочего стека этот порядок не выполняет.
+
+```sh
+python3 prepare-api-tls.py --local --output runtime/api-pki
+openssl verify -CAfile runtime/api-pki/api-ca/ca.crt runtime/api-pki/api-tls/server.crt runtime/api-pki/api-operator/operator.crt
+```
+
+Повторная генерация поверх существующего каталога запрещена, старые удостоверения не перезаписываются. Локальная CA живёт год, серверное и операторское удостоверения — 30 суток; SAN сервера ограничены `localhost`, `127.0.0.1` и `::1`. Получаются `api-ca` для закрытого выпуска, `api-tls` для сервера и `api-operator` для человека. Все находятся в игнорируемом `runtime`, исключённом из build context и отдельно от монтируемого другим ролям `secrets`. На Linux обеспечьте проход к трём серверным файлам и чтение `server.key` контейнерным UID 10001: `sudo chown -R 10001:10001 runtime/api-pki/api-tls`; ключ CA и операторские файлы остаются только у оператора. Права PKI по умолчанию 700/600, секреты в команды не подставляются.
+
+Импортируйте `runtime/api-pki/api-operator/operator.p12` в клиентские удостоверения своего браузера/ОС; пароль читайте локально из `runtime/api-pki/api-operator/p12-password`, не отправляйте в чат. Доверие серверному корню задаётся отдельным импортом `runtime/api-pki/api-operator/api-ca.crt` только для этой локальной проверки. На macOS клиентский PKCS12 можно импортировать через «Связка ключей», на Linux — через управление сертификатами браузера; не импортируйте `api-ca/ca.key`. Для новой PKI используйте новый каталог, настройте `API_TLS_ROOT`, обновите доверие и адресно пересоздайте только API. Ротация не сбрасывает UUID, sequence, очередь или сохранённые результаты.
+
+Если браузер не предъявляет клиентский сертификат, соединение завершается до HTTP: Chrome может показать `ERR_EMPTY_RESPONSE`, а curl — `Empty reply from server`. Это не подтверждение падения API. Сначала сравните запрос с явно переданным удостоверением по команде ниже; доверие серверному корню и наличие клиентского удостоверения — разные обязательные условия. Тестовый браузер получает сертификат явно и не устанавливает его в системное хранилище; его PASS не означает, что обычный браузер оператора уже настроен.
+
+```sh
+curl --fail --cacert runtime/api-pki/api-operator/api-ca.crt --cert runtime/api-pki/api-operator/operator.crt --key runtime/api-pki/api-operator/operator.key https://localhost:18496/readyz
+```
+
+Запрос без клиентского удостоверения либо с чужой CA отвергается на TLS до HTTP; `--insecure` не является порядком запуска. После включения профиля `ui` собственный издатель в ревизии 3 публикует `/docs` для группы «Перевод текстов» и компонента «Операционный API». Другие компоненты ссылку не наследуют. UUID и журнал остаются прежними; изменение публичного адреса требует большей ревизии по [контракту ссылок](../../../docs/api/platform-ui-injection.md#ссылки-на-собственные-интерфейсы). При откате сначала публикуйте описание без ссылки в большей ревизии совместимым издателем, не запускайте прежнюю ревизию 2 против уже принятой 3 и не сбрасывайте том.
 
 ## Масштабирование и географическое размещение
 
 Единица вычислительного масштабирования — пара `translator-model` + `translator-worker` с локальным socket volume. На удалённом узле используется тот же образ и `compose.remote.yml`; узел подключается по TLS к принадлежащим поставке Kafka и PostgreSQL. Unix socket и model volume между узлами не разделяются. Consumer масштабируются не выше числа partitions. `translator-outbox` остаётся одним активным экземпляром до появления отдельного механизма fencing.
 
-Операционный API: `GET /healthz`, `GET /readyz`, `GET /v1/status`, `GET /metrics`. В нём намеренно отсутствуют POST, PUT, DELETE, тексты заданий и результаты.
+Операционный API: `GET /healthz`, `GET /readyz`, `GET /v1/status`, `GET /v1/components`, `GET /metrics`. В нём намеренно отсутствуют POST, PUT, DELETE, тексты заданий и результаты. Защищённая документация описана [выше](#swagger-операционного-api).
 
 ## Сборка и проверки
 
@@ -130,6 +171,23 @@ docker run --rm --network none aelev/translator-service:test poetry run ruff che
 docker run --rm --network none aelev/translator-service:test poetry run pyright src test
 python3 test/test_configuration.py
 ```
+
+Проверка Swagger использует работающие API и оболочку, выполняет только чтение и не создаёт переводческих заданий или Docker-ресурсов. В операторском окружении требуются Playwright 1.56.0 и установленный Chromium; пароль пользователя оболочки передаётся только файлом. Из каталога сервиса:
+
+```sh
+python3 test/swagger.py \
+  --ca runtime/api-pki/api-operator/api-ca.crt \
+  --cert runtime/api-pki/api-operator/operator.crt \
+  --key runtime/api-pki/api-operator/operator.key \
+  --untrusted-cert secrets/status/publisher.crt \
+  --untrusted-key secrets/status/publisher.key \
+  --chromium <путь-к-установленному-Chromium> \
+  --ui-url https://<адрес-оболочки>:<порт> \
+  --viewer-user <оператор> \
+  --viewer-password-file <файл-пароля>
+```
+
+Отрицательная проверка требует удостоверения, которое API не доверяет; для раздельных локальных CA подходит собственное удостоверение издателя. Только при локальной проверке на loopback с локальной PKI можно явно добавить `--allow-local-certificate`: HTTPS-пробы всё равно проверяют CA и SAN, рабочие TLS-проверки не отключаются. [Сводный результат Swagger](test/swagger-validation-result.md), [настоящий браузерный результат](test/swagger-live-result.md) и [снимок](test/swagger.png) отделены от прежнего полного испытания перевода.
 
 Каталог `test` исключён из обычного build context через `.dockerignore` и поэтому не попадает в runtime-образы. Только test-stage получает его явно как именованный контекст `translator_tests`; сборка test-stage без `--build-context translator_tests=./test` должна завершиться ошибкой, а не молча создать образ без проверок.
 
@@ -181,6 +239,7 @@ docker compose --env-file .env --profile ui stop translator-service-status-publi
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_CLIENT_ID` | Client ID только собственной роли публикации. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_AUDIENCE` | Аудитория JWT платформенного API. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID` | Постоянный UUID собственного описания. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_DESCRIPTION_REVISION` | Положительная ревизия описания, сейчас 3. При изменении публичного адреса/состава увеличьте её, сохранив UUID и журнал; исходники для переноса endpoint менять не требуется. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS` | Интервал публикации; браузер по-прежнему опрашивает раз в минуту. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS` | Предел каждой собственной сетевой пробы/отправки. |
 | `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_ROOT` | Собственные рабочие удостоверения, без административных файлов. |

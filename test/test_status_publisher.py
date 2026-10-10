@@ -15,7 +15,12 @@ from translator_service import status_publisher as owner
 @pytest.fixture
 def cfg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
     monkeypatch.setenv("AELEV_TRANSLATOR_PRESENCE_TTL_SECONDS", "30")
+    monkeypatch.setenv("AELEV_INFRASTRUCTURE_TRANSLATOR_UI_DESCRIPTION_REVISION", "3")
     monkeypatch.setenv("AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT", "8080")
+    monkeypatch.setenv(
+        "AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL",
+        "https://translator.invalid:8443",
+    )
     return Settings(
         "https://shell.invalid",
         "https://identity.invalid",
@@ -33,12 +38,39 @@ def cfg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
 def test_description_is_own_technical_composition(cfg: Settings) -> None:
     value = json.loads(owner.description(cfg))
     assert value["module_id"] == cfg.module_id
-    assert value["revision"] == 2
+    assert value["revision"] == 3
+    assert value["swagger_url"] == "https://translator.invalid:8443/docs"
+    assert "ui_url" not in value
+    for part in value["components"]:
+        if part["id"] == "api":
+            assert part["swagger_url"] == value["swagger_url"]
+        else:
+            assert "swagger_url" not in part
     assert value["title"] == {"ru": "Перевод текстов", "en": "Text translation"}
     assert any("MADLAD" in part["title"]["ru"] for part in value["components"])
     assert value["service_kind"] == "INFRASTRUCTURE"
     assert value["sections"] == []
     assert [part["id"] for part in value["components"]] == list(owner.COMPONENTS)
+
+
+def test_address_and_revision_can_change_without_source_edits(
+    cfg: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(owner.PREFIX + "API_PUBLIC_URL", "https://remote.owner.invalid")
+    monkeypatch.setenv(owner.PREFIX + "UI_DESCRIPTION_REVISION", "4")
+    value = json.loads(owner.description(cfg))
+    assert value["revision"] == 4
+    assert value["swagger_url"] == "https://remote.owner.invalid/docs"
+    assert value["module_id"] == cfg.module_id
+
+
+@pytest.mark.parametrize("revision", ["0", "-1", "9223372036854775808", "bad"])
+def test_invalid_description_revision_fails_closed(
+    cfg: Settings, monkeypatch: pytest.MonkeyPatch, revision: str
+) -> None:
+    monkeypatch.setenv(owner.PREFIX + "UI_DESCRIPTION_REVISION", revision)
+    with pytest.raises(ValueError):
+        owner.description(cfg)
 
 
 @pytest.mark.parametrize("unavailable", ["none", "database", "kafka", "api", "model"])

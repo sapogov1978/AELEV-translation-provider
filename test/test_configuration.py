@@ -244,6 +244,24 @@ class TranslatorConfigurationTest(unittest.TestCase):
         self.assertNotIn("@app.put", source)
         self.assertNotIn("@app.delete", source)
 
+    def test_operator_https_is_owned_without_an_extra_service(self) -> None:
+        api = _resolved_compose()["services"]["translator-api"]
+        self.assertEqual(
+            api["command"], ["python", "-m", "translator_service.api_server"]
+        )
+        self.assertEqual(len(api["ports"]), 2)
+        self.assertEqual(api["ports"][0]["host_ip"], "127.0.0.1")
+        self.assertEqual(
+            api["environment"]["AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL"],
+            "https://localhost:18496",
+        )
+        mounts = {mount["target"]: mount for mount in api["volumes"]}
+        for name in ("server.crt", "server.key", "clients-ca.crt"):
+            mount = mounts["/run/secrets/translator-api/" + name]
+            self.assertTrue(mount["read_only"])
+            self.assertFalse(mount["bind"].get("create_host_path", False))
+        self.assertFalse(any("operator" in key or "ca.key" in key for key in mounts))
+
     def test_restart_policy_distinguishes_migration(self) -> None:
         services = _resolved_compose()["services"]
         for name, service in services.items():

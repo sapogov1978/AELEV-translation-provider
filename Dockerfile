@@ -6,6 +6,13 @@ RUN apt-get update \
     && apt-get upgrade --yes \
     && rm -rf /var/lib/apt/lists/*
 
+FROM python-bookworm AS swagger-assets
+# Official immutable Swagger UI release; no browser-time CDN dependencies.
+ADD --checksum=sha256:050bc415ee7048dcd881682678f720264e7da5e373f7461d7c58c755305255f7 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/dist/swagger-ui-bundle.js /assets/swagger-ui-bundle.js
+ADD --checksum=sha256:1ac324f7dcd27e4b9386b4bd6421271ec147e922a22c05ba24b11515e9aa6321 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/dist/swagger-ui.css /assets/swagger-ui.css
+ADD --checksum=sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/LICENSE /assets/LICENSE
+RUN chmod 644 /assets/swagger-ui-bundle.js /assets/swagger-ui.css /assets/LICENSE
+
 FROM python-bookworm AS poetry-base
 ENV POETRY_VERSION=2.2.1 \
     POETRY_NO_INTERACTION=1 \
@@ -36,6 +43,7 @@ COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
 COPY translator.lock.json ./translator.lock.json
+COPY --from=swagger-assets /assets ./swagger-assets
 CMD ["poetry", "run", "pytest", "-q"]
 
 FROM rust:1.90.0-slim-bookworm AS madlad-runtime-builder
@@ -81,6 +89,7 @@ ADD --chown=10001:10001 --checksum=sha256:ef11ac9a22c7503492f56d48dce53be20e339b
 ADD --chown=10001:10001 --checksum=sha256:a2799ccc696b752ba00c34f58726bfe253a04921ceb6cfc620400f560474790b https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer.json /opt/aelev/model/tokenizer.json
 ADD --chown=10001:10001 --checksum=sha256:641fc660745306dfb935f666a68f8bc10a44c39241cfb357be518fda8c09662d https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer_config.json /opt/aelev/model/tokenizer_config.json
 COPY translator.lock.json ./translator.lock.json
+COPY --from=swagger-assets /assets ./swagger-assets
 COPY src ./src
 COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini

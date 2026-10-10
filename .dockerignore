@@ -9,6 +9,7 @@ __pycache__
 target
 madlad-runtime/target
 secrets/
+runtime/
 test/
 /test/*
 /secrets/*
