@@ -4,50 +4,6 @@ include:
   - path: ../kafka/compose.yml
     env_file: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ENV_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ENV_FILE in the translator-service .env file}
 
-services:
-  translator-service-status-publisher:
-    extends: {file: ./compose.remote.yml, service: translator-service-status-publisher}
-  translator-service-status-provision:
-    extends: {file: ./compose.remote.yml, service: translator-service-status-provision}
-  translator-database:
-    extends: {file: ./compose.remote.yml, service: translator-database}
-    profiles: !reset []
-  translator-migrator:
-    extends: {file: ./compose.remote.yml, service: translator-migrator}
-    depends_on:
-      translator-database: {condition: service_healthy, required: true}
-  translator-topic-provisioner:
-    extends: {file: ./compose.remote.yml, service: translator-topic-provisioner}
-    depends_on:
-      kafka: {condition: service_healthy}
-  translator-model:
-    extends: {file: ./compose.remote.yml, service: translator-model}
-  translator-priority-consumer:
-    extends: {file: ./compose.remote.yml, service: translator-priority-consumer}
-  translator-normal-consumer:
-    extends: {file: ./compose.remote.yml, service: translator-normal-consumer}
-  translator-worker:
-    extends: {file: ./compose.remote.yml, service: translator-worker}
-  translator-outbox:
-    extends: {file: ./compose.remote.yml, service: translator-outbox}
-  translator-api:
-    extends: {file: ./compose.remote.yml, service: translator-api}
-
-volumes:
-  translator-status-data:
-    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_STATE_VOLUME:?set in .env}
-  translator-database-data:
-    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME in the translator-service .env file}
-  translator-model-socket:
-
-networks:
-  translator-data:
-    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NETWORK:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NETWORK in the translator-service .env file}
-    internal: true
-  translator-ingress:
-    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK in the translator-service .env file}
-    external: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK_EXTERNAL:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK_EXTERNAL in the translator-service .env file}
-
-secrets:
-  translator-database-password:
-    file: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT in the translator-service .env file}/postgres-password
+  - path:
+      - ./compose.remote.yml
+      - ./compose.local.yml

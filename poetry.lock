@@ -2,18 +2,18 @@
 
 [[package]]
 name = "aelev-platform-ui-client"
-version = "1.0.0"
+version = "1.1.0"
 description = "Public, consumer-agnostic HTTPS presentation transport"
 optional = false
 python-versions = ">=3.13"
 groups = ["main"]
 files = [
-    {file = "aelev_platform_ui_client-1.0.0-py3-none-any.whl", hash = "sha256:9717ce19e4dc17ae0ebe48513cac0a534b5f19e952393ad726037b50745059b1"},
+    {file = "aelev_platform_ui_client-1.1.0-py3-none-any.whl", hash = "sha256:48107175d7e7d090118d11e55b0255ffd4d928bf37d7dfbbe81cef09ab4325a6"},
 ]
 
 [package.source]
 type = "file"
-url = "vendor/aelev_platform_ui_client-1.0.0-py3-none-any.whl"
+url = "vendor/aelev_platform_ui_client-1.1.0-py3-none-any.whl"
 
 [[package]]
 name = "alembic"
@@ -1249,4 +1249,4 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13"
-content-hash = "90c4cff786c484445722acf4d17dccaf95b9e62ee207477a394ca303e063d2c9"
+content-hash = "d847cd0369a7a38f312f182611ac6591829cdae5233f0ce796998761bbbacfe6"

@@ -66,11 +66,12 @@ class TranslatorConfigurationTest(unittest.TestCase):
     def test_operator_entrypoints_are_owned_by_the_component(self) -> None:
         self.assertEqual(
             {path.name for path in COMPONENT_ROOT.glob("compose*.yml")},
-            {"compose.yml", "compose.remote.yml"},
+            {"compose.yml", "compose.remote.yml", "compose.local.yml"},
         )
         for name in (
             "compose.yml",
             "compose.remote.yml",
+            "compose.local.yml",
             ".env.example",
             "README.md",
             "Dockerfile",
@@ -83,6 +84,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
             for path in (
                 COMPOSE_PATH,
                 REMOTE_COMPOSE_PATH,
+                COMPONENT_ROOT / "compose.local.yml",
             )
         )
         variables = [

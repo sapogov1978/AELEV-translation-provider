@@ -72,6 +72,7 @@ services:
     profiles: [ui]
     entrypoint: ["python", "-m", "translator_service.status_publisher"]
     command: [run]
+    stop_grace_period: 2m
     user: "10001:10001"
     group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID:?set in the translator-service .env file}"]
     environment: *ui-status-environment
