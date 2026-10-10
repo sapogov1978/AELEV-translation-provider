@@ -241,6 +241,9 @@ def main() -> None:
         client = Producer(
             {**kafka_configuration(), "enable.idempotence": True, "acks": "all"}
         )
+    from translator_service.presence import start
+
+    presence_thread = start(repo.engine, args.role, stopped)
     try:
         while not stopped.is_set():
             try:
@@ -304,6 +307,8 @@ def main() -> None:
                 LOGGER.warning("translation_storage_retry")
                 stopped.wait(5)
     finally:
+        stopped.set()
+        presence_thread.join(timeout=10)
         if args.role == "consumer":
             client.close()
         repo.engine.dispose()

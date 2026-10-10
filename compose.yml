@@ -5,6 +5,10 @@ include:
     env_file: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ENV_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ENV_FILE in the translator-service .env file}
 
 services:
+  translator-service-status-publisher:
+    extends: {file: ./compose.remote.yml, service: translator-service-status-publisher}
+  translator-service-status-provision:
+    extends: {file: ./compose.remote.yml, service: translator-service-status-provision}
   translator-database:
     extends: {file: ./compose.remote.yml, service: translator-database}
     profiles: !reset []
@@ -30,6 +34,8 @@ services:
     extends: {file: ./compose.remote.yml, service: translator-api}
 
 volumes:
+  translator-status-data:
+    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_STATE_VOLUME:?set in .env}
   translator-database-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME in the translator-service .env file}
   translator-model-socket:

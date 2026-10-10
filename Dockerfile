@@ -14,6 +14,7 @@ WORKDIR /opt/aelev
 RUN --mount=type=cache,id=aelev-translator-pip,target=/root/.cache/pip \
     pip install "poetry==${POETRY_VERSION}"
 COPY pyproject.toml poetry.lock ./
+COPY vendor ./vendor
 
 
 FROM poetry-base AS dependencies
@@ -63,7 +64,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     AELEV_TRANSLATOR_RUNTIME_PATH=/usr/local/bin/aelev-madlad-runtime
 RUN groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
-    && install -d --owner=10001 --group=10001 /opt/aelev/model /run/aelev-translator
+    && install -d --owner=10001 --group=10001 /opt/aelev/model /run/aelev-translator /var/lib/aelev-status
 WORKDIR /opt/aelev
 COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN python -m pip uninstall --yes pip \

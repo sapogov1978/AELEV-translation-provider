@@ -1,5 +1,7 @@
 # translator-service
 
+В «Состоянии» верхняя строка называется «Перевод текстов» (`Text translation`) и отражает назначение, а раскрываемый состав показывает технологии и процессы этой поставки. Названия публикует сам владелец в ревизии 2; оболочка не содержит таблицы переименований. UUID, identity, состав и последовательность сохраняются.
+
 Самодостаточный инфраструктурный сервис асинхронного перевода. Он нужен, когда нескольким сервисам требуется один воспроизводимый выпуск модели, устойчивая очередь, дедупликация, повтор после отказа и единый контракт результата. Клиенты публикуют `TranslationRequested` в обычный или приоритетный Kafka topic; translator-service сохраняет задание в собственной PostgreSQL, выполняет его локальной копией MADLAD и публикует `TranslationCompleted`. Он ничего не знает о назначении перевода и составе клиентов.
 
 Нормативные документы: [SPEC](SPEC.md), [Kafka-контракт](../../../docs/api/translation.md) и [ADR-0096](../../../docs/adr/20261009-0096-consumer-agnostic-scalable-translator.md).
@@ -149,3 +151,47 @@ python3 test/lifecycle.py
 Итоговый отчёт — [`test/validation-result.md`](test/validation-result.md): полный жизненный цикл на реальных компонентах пройден, но обнаружена смысловая добавка в переводе MADLAD, поэтому качество перевода не считается подтверждённым. Читаемый отчёт базового набора — [`test/pytest-result.md`](test/pytest-result.md), регрессии повторного provisioning — [`test/provisioner-regression.md`](test/provisioner-regression.md). Конфигурационные проверки выполняются на хосте, поскольку test-образ не содержит Docker CLI. Изолированные SQL-тесты в CI требуют `AELEV_TRANSLATOR_TEST_DATABASE_URL` и одноразовой базы `translator_test` с миграциями; без неё pytest явно отмечает пропуск. Их нельзя направлять на рабочую БД: порядок подготовки закреплён в [сервисном CI](../../../.github/workflows/translator-service-validation.yml). Такие проверки не заменяют полный жизненный цикл, а текущий локальный прогон не подтверждает удалённые TLS/mTLS, физически разнесённые узлы или нагрузочные пределы.
 
 `contracts/translation-v1.json` генерируется из общего канонического каталога. `obsolete/` содержит только исторические рецепты и не входит в активную поставку.
+
+## Собственное состояние в platform-ui
+
+Повторная проверка названия назначения и технологического состава: [результат](test/status-labels-result.md). Она не подменяет прежние испытания жизненного цикла.
+
+Профиль `ui` включает только собственную техническую роль публикации; обычный запуск не зависит от оболочки или IdP. Отдельная строка имеет тип `INFRASTRUCTURE`, не добавляет функциональные разделы. Состав: собственная БД, соединение с Kafka, два consumer, модель, worker, outbox, API и издатель; тексты заданий и сведения о потребителях не публикуются. Подтверждённая отрицательная native readiness отличается от отсутствия связи: transport/TLS-ошибка означает `UNKNOWN`. При выключенном издателе зелёное состояние истекает по TTL приёмника.
+
+Поставка использует собственный образ и включённый публичный `aelev-platform-ui-client==1.0.0` в `vendor`; SHA-256 закреплён собственным Poetry lock. Это библиотека транспорта, не общий runtime-образ/каталог продуктов. Сборка после извлечения этого каталога не читает соседние исходники. Протокол, установка артефакта и пример собственного издателя: [руководство оболочки](../platform-ui/USER_MANUAL.md#отправить-метаданные-из-python).
+
+Из этого каталога, после подготовки удостоверений:
+
+```sh
+docker compose --env-file .env --profile ui build translator-service-status-publisher
+docker compose --env-file .env --profile provision run --rm translator-service-status-provision
+docker compose --env-file .env --profile ui up -d --no-build translator-service-status-publisher
+docker compose --env-file .env --profile ui stop translator-service-status-publisher
+```
+
+Рабочий процесс получает только `secrets/status/{shell-ca.crt,identity-ca.crt,publisher.crt,publisher.key,client-secret}`. Одноразовый `provision` получает отдельные `secrets/status-admin/{admin-user,admin-password}`, не монтируемые в runtime. Закрытые ключи CA не доставляются в контейнеры. Используйте утверждённые цепочки CA, SAN/EKU и ротацию; генерация локального удостоверения описана в руководстве и не заменяет production PKI/SVID. HTTPS-адреса могут находиться в разных странах; общей Docker-сети с UI/IdP нет. `host.docker.internal` и `keycloak:host-gateway` — только локальные адресные alias примера; для удалённой установки задайте реальные FQDN/порты и доступность сети. Проверка сертификатов не отключается.
+
+| Переменная | Назначение |
+|---|---|
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_URL` | HTTPS-адрес платформенного технического API. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_IDENTITY_URL` | HTTPS-адрес IdP; должен совпадать с SAN сертификата. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_REALM` | Realm собственной машинной identity. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_CLIENT_ID` | Client ID только собственной роли публикации. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_AUDIENCE` | Аудитория JWT платформенного API. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID` | Постоянный UUID собственного описания. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS` | Интервал публикации; браузер по-прежнему опрашивает раз в минуту. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS` | Предел каждой собственной сетевой пробы/отправки. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_ROOT` | Собственные рабочие удостоверения, без административных файлов. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID` | Дополнительная группа чтения собственных секретов. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_ADMIN_ROOT` | Отдельные operator credentials только явной одноразовой задачи. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_PROVISION_UID` | UID оператора для одноразовой записи собственного client secret. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_STATE_VOLUME` | Постоянный журнал последовательности и точных повторяемых байтов. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MEMORY_LIMIT` | Лимит памяти только издателя. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_PRESENCE_INTERVAL_SECONDS` | Период собственного heartbeat роли и локальной пробы модели. |
+| `AELEV_INFRASTRUCTURE_TRANSLATOR_PRESENCE_TTL_SECONDS` | Возраст, после которого присутствие роли неизвестно. |
+
+Журнал `UI_STATE_VOLUME` сохраняется при stop/start и обновлении; не удаляйте его как кэш: приёмник помнит sequence прежнего UUID. Восстановление требует собственного backup журнала или согласованного нового UUID, не сброса чужой БД/повторного sequence=1. Состояние оболочки восстанавливается повторной публикацией, canonical источник описания/состава остаётся у владельца.
+
+`test/status_publication.py` работает с уже существующей настоящей установкой: OIDC/API/DOM, stop/start частей и издателя, реальное истечение TTL, возврат исходных контейнеров. Пример: `python3.13 test/status_publication.py --ui-url https://<ui-host>:<port> --viewer-user <viewer> --viewer-password-file <password-file> --chromium <installed-chromium> --status-ttl-seconds 120`. Требуются Python 3.13 и Playwright 1.56.0 в операторской тестовой среде; runtime-образ их браузерную роль не запускает. Исключение браузерной проверки сертификата допустимо только явным `--allow-local-certificate` на loopback с локальной PKI; рабочие издатели всегда проверяют TLS. Тест не создаёт фиктивных identities, каталогов, контейнеров, сетей или томов и восстанавливает исходное состояние; отчёт/снимок остаются в `test`. Полный остановленный приёмник UI физически не может доставить собственный свежий отчёт: проверяется UNKNOWN в уже открытом браузере и восстановление после старта.
+
+Результаты текущей проверки публикации состояния: [читаемый отчёт](test/status-validation-result.md), [проверка нативных частей](test/status-native-result.md), [проверка издателя](test/status-publication-result.md). Прежние предметные/кластерные испытания не подменяются этой проверкой.

@@ -3,11 +3,12 @@
 import sys
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from translator_service import runtime, topic_provisioner
+from translator_service import presence, runtime, topic_provisioner
 
 
 def test_topic_retention_is_declared_by_translator_not_broker(
@@ -81,6 +82,7 @@ def test_database_outage_never_commits_or_polls_next_message(
             actions.append("close")
 
     monkeypatch.setattr(runtime, "repository", lambda: Repo())
+    monkeypatch.setattr(presence, "start", Mock(return_value=Mock()))
     monkeypatch.setattr(runtime, "Consumer", Consumer)
 
     def configuration() -> dict[str, Any]:

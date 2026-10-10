@@ -2,6 +2,7 @@
 
 # pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
 
+import os
 from collections.abc import Mapping
 from typing import Protocol, cast
 
@@ -75,6 +76,22 @@ def ready() -> dict[str, str]:
 @app.get("/v1/status")
 def status() -> dict[str, object]:
     return read_status()
+
+
+@app.get("/v1/components")
+def components() -> dict[str, object]:
+    """Read our own process presence only; no customer identifiers or text."""
+    from translator_service.presence import read
+
+    repo = repository()
+    try:
+        return {
+            "components": read(
+                repo.engine, int(os.environ["AELEV_TRANSLATOR_PRESENCE_TTL_SECONDS"])
+            )
+        }
+    finally:
+        repo.engine.dispose()
 
 
 @app.get("/metrics", response_class=Response)

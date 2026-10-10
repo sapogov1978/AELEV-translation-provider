@@ -1,0 +1,116 @@
+"""Observe owned queue, transport, API and runtime presence, not consumers."""
+
+from __future__ import annotations
+
+import json
+import os
+
+from aelev_platform_ui_client import Settings, aggregate, observe, run, timestamp
+
+from translator_service.api import verify_kafka
+from translator_service.presence import read
+from translator_service.runtime import repository
+
+PREFIX = "AELEV_INFRASTRUCTURE_TRANSLATOR_"
+COMPONENTS = {
+    "database": "PostgreSQL переводчика",
+    "kafka-connection": "Соединение с Kafka",
+    "priority-consumer": "Приоритетный consumer",
+    "normal-consumer": "Обычный consumer",
+    "model": "MADLAD",
+    "worker": "Исполнитель перевода",
+    "outbox": "Outbox",
+    "api": "Операционный API",
+    "publisher": "Издатель состояния переводчика",
+}
+
+
+def description(cfg: Settings) -> bytes:
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "module_id": cfg.module_id,
+            "revision": 2,
+            "title": {
+                "ru": "Перевод текстов",
+                "en": "Text translation",
+            },
+            "service_kind": "INFRASTRUCTURE",
+            "sections": [],
+            "components": [
+                {"id": name, "title": {"ru": title, "en": name}}
+                for name, title in COMPONENTS.items()
+            ],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+
+
+def probe(cfg: Settings) -> tuple[str, list[dict[str, str]]]:
+    def kafka() -> str:
+        try:
+            verify_kafka()
+            return "ONLINE"
+        except Exception:
+            return "UNKNOWN"
+
+    observations = [observe("kafka-connection", kafka)]
+    try:
+        repo = repository()
+        try:
+            roles = read(
+                repo.engine, int(os.environ["AELEV_TRANSLATOR_PRESENCE_TTL_SECONDS"])
+            )
+        finally:
+            repo.engine.dispose()
+        observations.append(
+            {"id": "database", "state": "ONLINE", "observed_at": timestamp()}
+        )
+        observations.extend(
+            {
+                "id": str(role["id"]),
+                "state": str(role["state"]),
+                "observed_at": role["observed_at"] or timestamp(),
+            }
+            for role in roles
+        )
+    except Exception:
+        observations.extend(
+            {"id": role, "state": "UNKNOWN", "observed_at": timestamp()}
+            for role in (
+                "database",
+                "priority-consumer",
+                "normal-consumer",
+                "model",
+                "worker",
+                "outbox",
+            )
+        )
+
+    def api() -> str:
+        # This is an owner-private local endpoint, never the inter-service interface.
+        import httpx
+
+        with httpx.Client(timeout=cfg.timeout, trust_env=False) as client:
+            try:
+                response = client.get(
+                    "http://translator-api:"
+                    + os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT"]
+                    + "/healthz"
+                )
+            except httpx.HTTPError:
+                return "UNKNOWN"
+            return (
+                "ONLINE"
+                if response.status_code == 200 and response.json() == {"status": "ok"}
+                else "UNKNOWN"
+            )
+
+    observations.append(observe("api", api))
+    return aggregate(observations), observations
+
+
+if __name__ == "__main__":
+    settings = Settings.environment(PREFIX)
+    run(settings, "translator-status", description(settings), lambda: probe(settings))

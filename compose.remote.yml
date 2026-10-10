@@ -7,6 +7,8 @@ x-image: &image
     target: translator-runtime
 
 x-database-environment: &database-environment
+  AELEV_TRANSLATOR_PRESENCE_INTERVAL_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_PRESENCE_INTERVAL_SECONDS:?set in the translator-service .env file}
+  AELEV_TRANSLATOR_PRESENCE_TTL_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_PRESENCE_TTL_SECONDS:?set in the translator-service .env file}
   AELEV_ENVIRONMENT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT in the translator-service .env file}
   AELEV_TRANSLATOR_DATABASE_HOST: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_HOST:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_HOST in the translator-service .env file}
   AELEV_TRANSLATOR_DATABASE_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_PORT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_PORT in the translator-service .env file}
@@ -52,7 +54,77 @@ x-role: &role
   mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_MEMORY_LIMIT in the translator-service .env file}
   cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_CPUS in the translator-service .env file}
 
+x-ui-status-environment: &ui-status-environment
+  <<: [*database-environment, *kafka-environment]
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_URL:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_IDENTITY_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_IDENTITY_URL:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_REALM: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_REALM:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_CLIENT_ID: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_CLIENT_ID:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_AUDIENCE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_AUDIENCE:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS:?set in the translator-service .env file}
+
 services:
+  translator-service-status-publisher:
+    <<: *image
+    profiles: [ui]
+    entrypoint: ["python", "-m", "translator_service.status_publisher"]
+    command: [run]
+    user: "10001:10001"
+    group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID:?set in the translator-service .env file}"]
+    environment: *ui-status-environment
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    extra_hosts: ["host.docker.internal:host-gateway", "keycloak:host-gateway"]
+    mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MEMORY_LIMIT:?set in the translator-service .env file}
+    volumes:
+      - translator-status-data:/var/lib/aelev-status
+      - type: bind
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_ROOT:?set in the translator-service .env file}
+        target: /run/secrets/status
+        read_only: true
+        bind: {create_host_path: false}
+      - *secret-mount
+    secrets: [translator-database-password]
+    networks: [translator-data, kafka, translator-ingress]
+    healthcheck:
+      test: ["CMD", "python", "-m", "translator_service.status_publisher" , "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  translator-service-status-provision:
+    <<: *image
+    profiles: [provision]
+    entrypoint: ["python", "-m", "translator_service.status_publisher"]
+    command: [provision]
+    user: "${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_PROVISION_UID:?set in the translator-service .env file}:${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID:?set in the translator-service .env file}"
+    environment: *ui-status-environment
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    extra_hosts: ["host.docker.internal:host-gateway", "keycloak:host-gateway"]
+    volumes:
+      - type: bind
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_ROOT:?set in the translator-service .env file}
+        target: /run/secrets/status
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_ADMIN_ROOT:?set in the translator-service .env file}
+        target: /run/secrets/status-admin
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [translator-data, kafka, translator-ingress]
+
+
   translator-database:
     image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_IMAGE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_IMAGE in the translator-service .env file}
     profiles: [bundled-database]
@@ -212,6 +284,8 @@ services:
     networks: [translator-data, kafka, translator-ingress]
 
 volumes:
+  translator-status-data:
+    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_STATE_VOLUME:?set in the translator-service .env file}
   translator-database-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME in the translator-service .env file}
   translator-model-socket:
