@@ -129,6 +129,26 @@ def test_request_id_collision_preserves_original(repo: Repository) -> None:
     assert lease is not None and bytes(lease["payload"]) == raw
 
 
+def test_operator_result_requires_exact_request_and_outbox_ack(
+    repo: Repository,
+) -> None:
+    raw = request()
+    identity = parse(raw, "TranslationRequested")["id"]
+    repo.accept(raw)
+    lease = repo.lease()
+    assert lease is not None
+    assert repo.complete(lease, success())
+    assert repo.delivered_result(identity, digest(raw)) is None
+    repo.published(identity)
+    result = repo.delivered_result(identity, digest(raw))
+    assert result is not None
+    assert (
+        parse(result, "TranslationCompleted")["data"]["translated_text"]
+        == "Zentralbank"
+    )
+    assert repo.delivered_result(identity, digest(b"foreign")) is None
+
+
 def test_slow_retry_does_not_starve_older_waiting_work(repo: Repository) -> None:
     first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
     repo.accept(request(identity=first_id))

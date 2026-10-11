@@ -18,7 +18,7 @@ COMPONENTS = {
     "kafka-connection": "Соединение с Kafka",
     "priority-consumer": "Приоритетный consumer",
     "normal-consumer": "Обычный consumer",
-    "model": "MADLAD",
+    "model": "Index-Translate 9B",
     "worker": "Исполнитель перевода",
     "outbox": "Outbox",
     "api": "Операционный API",

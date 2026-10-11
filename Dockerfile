@@ -10,8 +10,16 @@ FROM python-bookworm AS swagger-assets
 # Official immutable Swagger UI release; no browser-time CDN dependencies.
 ADD --checksum=sha256:050bc415ee7048dcd881682678f720264e7da5e373f7461d7c58c755305255f7 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/dist/swagger-ui-bundle.js /assets/swagger-ui-bundle.js
 ADD --checksum=sha256:1ac324f7dcd27e4b9386b4bd6421271ec147e922a22c05ba24b11515e9aa6321 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/dist/swagger-ui.css /assets/swagger-ui.css
+ADD --checksum=sha256:a5c8a34e09e49737382cc5019446eec7c3db3461963fc5bfe448361d3c5549e9 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/dist/oauth2-redirect.js /assets/oauth2-redirect.js
 ADD --checksum=sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30 https://raw.githubusercontent.com/swagger-api/swagger-ui/v5.33.1/LICENSE /assets/LICENSE
-RUN chmod 644 /assets/swagger-ui-bundle.js /assets/swagger-ui.css /assets/LICENSE
+RUN chmod 644 /assets/swagger-ui-bundle.js /assets/swagger-ui.css /assets/oauth2-redirect.js /assets/LICENSE
+
+FROM python-bookworm AS index-model-assets
+# Byte-identical official mirror of the Hugging Face revision in translator.lock.json.
+COPY translator.lock.json download-model.py /supply/
+RUN --mount=type=cache,id=aelev-translator-index-weights,target=/var/cache/aelev-translator \
+    python /supply/download-model.py --lock /supply/translator.lock.json \
+    --destination /model --cache /var/cache/aelev-translator
 
 FROM python-bookworm AS poetry-base
 ENV POETRY_VERSION=2.2.1 \
@@ -43,22 +51,28 @@ COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
 COPY translator.lock.json ./translator.lock.json
+COPY Dockerfile ./Dockerfile
+COPY download-model.py ./download-model.py
 COPY --from=swagger-assets /assets ./swagger-assets
 CMD ["poetry", "run", "pytest", "-q"]
 
-FROM rust:1.90.0-slim-bookworm AS madlad-runtime-builder
+FROM python-bookworm AS index-runtime-builder
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends build-essential pkg-config \
+    && apt-get install --yes --no-install-recommends cmake g++ make \
     && rm -rf /var/lib/apt/lists/*
-WORKDIR /opt/aelev/madlad-runtime
-COPY madlad-runtime/Cargo.toml ./Cargo.toml
-COPY madlad-runtime/Cargo.lock ./Cargo.lock
-COPY madlad-runtime/src ./src
-RUN --mount=type=cache,id=aelev-translator-cargo-registry,target=/usr/local/cargo/registry \
-    --mount=type=cache,id=aelev-translator-cargo-git,target=/usr/local/cargo/git \
-    cargo build --locked --release --jobs 2
+ADD --checksum=sha256:6b58785f0a82898f4c3442417ff962e2d4b231b1bee5d033902ad90b27901e14 https://codeload.github.com/ggml-org/llama.cpp/tar.gz/d81235049384534c167caea52b85a694f6103d14 /source.tar.gz
+RUN mkdir /source \
+    && tar -xzf /source.tar.gz --strip-components=1 -C /source \
+    && cmake -S /source -B /source/build \
+       -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF \
+       -DLLAMA_BUILD_IS_DEV=OFF -DLLAMA_BUILD_NUMBER=0 \
+       -DLLAMA_BUILD_COMMIT=d81235049384534c167caea52b85a694f6103d14 \
+       -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+       -DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_APP=OFF \
+       -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
+    && cmake --build /source/build --parallel 2 --target llama-server
 
-FROM python-bookworm AS madlad-translator-base
+FROM python-bookworm AS translator-base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/opt/aelev/src \
@@ -69,7 +83,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     AELEV_TRANSLATOR_MODEL_ROOT=/opt/aelev/model \
     AELEV_TRANSLATOR_LOCK_PATH=/opt/aelev/translator.lock.json \
     AELEV_TRANSLATOR_SOCKET_PATH=/run/aelev-translator/translator.sock \
-    AELEV_TRANSLATOR_RUNTIME_PATH=/usr/local/bin/aelev-madlad-runtime
+    AELEV_TRANSLATOR_RUNTIME_PATH=/opt/llama/llama-server \
+    LD_LIBRARY_PATH=/opt/llama
 RUN groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
     && install -d --owner=10001 --group=10001 /opt/aelev/model /run/aelev-translator /var/lib/aelev-status
@@ -77,23 +92,16 @@ WORKDIR /opt/aelev
 COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN python -m pip uninstall --yes pip \
     && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
-COPY --from=madlad-runtime-builder /opt/aelev/madlad-runtime/target/release/aelev-madlad-runtime /usr/local/bin/aelev-madlad-runtime
+COPY --from=index-runtime-builder /source/build/bin/ /opt/llama/
 
-FROM madlad-translator-base AS translator-runtime
-ADD --chown=10001:10001 --checksum=sha256:d914176fd50bd7f565700006a31aa97b79d3ad17cee20c8e5ff2061d5cb74817 https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/added_tokens.json /opt/aelev/model/added_tokens.json
-ADD --chown=10001:10001 --checksum=sha256:cad399cab799b99409a6ec2d90d72552257c2bb752861261d2016691e0643e7c https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/config.json /opt/aelev/model/config.json
-ADD --chown=10001:10001 --checksum=sha256:0849b38987568ccfe4ebefc22bbda1cec4bee01c345e93bfab207d4692b0a1d5 https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/generation_config.json /opt/aelev/model/generation_config.json
-ADD --chown=10001:10001 --checksum=sha256:ea6e5531a3e95213c7f0635988d119e078a655c09306e47851e15d4c0c3f9c37 https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/model-q4k.gguf /opt/aelev/model/model-q4k.gguf
-ADD --chown=10001:10001 --checksum=sha256:7f79f1d5063d56c4b980eec0692f3c7429bdef335071d34e566bd00fd4b5e3e0 https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/special_tokens_map.json /opt/aelev/model/special_tokens_map.json
-ADD --chown=10001:10001 --checksum=sha256:ef11ac9a22c7503492f56d48dce53be20e339b63605983e9f27d2cd0e0f3922c https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/spiece.model /opt/aelev/model/spiece.model
-ADD --chown=10001:10001 --checksum=sha256:a2799ccc696b752ba00c34f58726bfe253a04921ceb6cfc620400f560474790b https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer.json /opt/aelev/model/tokenizer.json
-ADD --chown=10001:10001 --checksum=sha256:641fc660745306dfb935f666a68f8bc10a44c39241cfb357be518fda8c09662d https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/tokenizer_config.json /opt/aelev/model/tokenizer_config.json
+FROM translator-base AS translator-runtime
+COPY --from=index-model-assets --chown=10001:10001 --chmod=644 /model/Index-Translate-9B.Q4_K_M.gguf /opt/aelev/model/Index-Translate-9B.Q4_K_M.gguf
 COPY translator.lock.json ./translator.lock.json
 COPY --from=swagger-assets /assets ./swagger-assets
 COPY src ./src
 COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
-RUN python -m translator_service.madlad_translation_provider verify-model
+RUN python -m translator_service.index_translation_provider verify-model
 USER 10001:10001
-CMD ["python", "-m", "translator_service.madlad_translation_provider", "serve"]
+CMD ["python", "-m", "translator_service.index_translation_provider", "serve"]

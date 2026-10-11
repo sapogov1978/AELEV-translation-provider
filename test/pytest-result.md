@@ -33,4 +33,4 @@ tests_skipped=0
 duration_seconds=5.890
 ```
 
-Исходный машинный результат сохранён в [архиве JUnit](obsolete/pytest-result.xml). Дата, длительность, состав и итог проверок сохранены; повторный запуск при переоформлении не выполнялся.
+Исходный машинный результат сохранён в [архиве JUnit](https://github.com/sapogov1978/aelev/blob/d724c563053717ec84ef6fdb842fe873623c956c/services/infrastructure/translator-service/test/obsolete/pytest-result.xml). Дата, длительность, состав и итог проверок сохранены; повторный запуск при переоформлении не выполнялся.

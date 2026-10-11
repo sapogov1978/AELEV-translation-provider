@@ -153,28 +153,35 @@ class TranslatorConfigurationTest(unittest.TestCase):
             )
 
     def test_missing_required_setting_fails_before_start(self) -> None:
-        environment = _clean_environment()
-        variable = "AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST"
-        environment[variable] = ""
-        result = subprocess.run(
-            [
-                "docker",
-                "compose",
-                "--env-file",
-                str(ENV_PATH),
-                "-f",
-                str(COMPOSE_PATH),
-                "config",
-                "--quiet",
-            ],
-            cwd=COMPONENT_ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(variable, result.stderr)
+        for suffix in (
+            "HIGH_PRIORITY_BURST",
+            "API_TRANSLATION_ENABLED",
+            "API_TRANSLATION_TIMEOUT_SECONDS",
+            "API_TRANSLATION_MAX_IN_FLIGHT",
+        ):
+            with self.subTest(setting=suffix):
+                environment = _clean_environment()
+                variable = "AELEV_INFRASTRUCTURE_TRANSLATOR_" + suffix
+                environment[variable] = ""
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "--env-file",
+                        str(ENV_PATH),
+                        "-f",
+                        str(COMPOSE_PATH),
+                        "config",
+                        "--quiet",
+                    ],
+                    cwd=COMPONENT_ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(variable, result.stderr)
 
     def test_private_socket_and_network_boundaries(self) -> None:
         services = _resolved_compose()["services"]
@@ -256,10 +263,10 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "https://localhost:18496",
         )
         mounts = {mount["target"]: mount for mount in api["volumes"]}
-        for name in ("server.crt", "server.key", "clients-ca.crt"):
-            mount = mounts["/run/secrets/translator-api/" + name]
-            self.assertTrue(mount["read_only"])
-            self.assertFalse(mount["bind"].get("create_host_path", False))
+        mount = mounts["/run/secrets/translator-api"]
+        self.assertTrue(mount["read_only"])
+        self.assertFalse(mount["bind"].get("create_host_path", False))
+        self.assertTrue(mount["source"].endswith("runtime/api-pki/api-tls"))
         self.assertFalse(any("operator" in key or "ca.key" in key for key in mounts))
 
     def test_restart_policy_distinguishes_migration(self) -> None:

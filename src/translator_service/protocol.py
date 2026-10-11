@@ -5,7 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import cast
 
-_LANGUAGE = re.compile(r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$")
+LANGUAGE_PATTERN = r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$"
+_LANGUAGE = re.compile(LANGUAGE_PATTERN)
 
 
 class TranslatorConfigurationError(ValueError):

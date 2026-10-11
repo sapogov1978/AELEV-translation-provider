@@ -16,7 +16,22 @@ from translator_service.contracts import (
 )
 from translator_service.runtime import kafka_configuration, repository
 
-app = FastAPI(title="AELEV translator operations", docs_url=None, redoc_url=None)
+app = FastAPI(
+    title="AELEV translator operations",
+    docs_url=None,
+    redoc_url=None,
+    openapi_tags=[
+        {
+            "name": "default",
+            "description": "Service liveness, readiness, and runtime diagnostics.",
+        },
+        {
+            "name": "translator",
+            "description": "Operator translation operations.",
+        },
+        {"name": "metrics", "description": "Prometheus metrics."},
+    ],
+)
 
 
 class _TopicMetadata(Protocol):
@@ -58,13 +73,19 @@ def verify_kafka() -> None:
         raise RuntimeError(f"TRANSLATOR_TOPICS_UNAVAILABLE:{','.join(unavailable)}")
 
 
-@app.get("/healthz")
+@app.get("/healthz", tags=["default"], summary="Check API process liveness")
 def health() -> dict[str, str]:
+    """Confirm that the API responds; do not check Kafka, storage, or the model."""
     return {"status": "ok"}
 
 
-@app.get("/readyz")
+@app.get("/readyz", tags=["default"], summary="Check storage and Kafka readiness")
 def ready() -> dict[str, str]:
+    """Check the own database, Kafka broker, and all three required topics.
+
+    Return 503 when a dependency is unavailable. This probe does not prove model
+    readiness or that workers are making progress.
+    """
     try:
         read_status()
         verify_kafka()
@@ -73,14 +94,24 @@ def ready() -> dict[str, str]:
     return {"status": "ready"}
 
 
-@app.get("/v1/status")
+@app.get("/v1/status", tags=["default"], summary="Read aggregate queue state")
 def status() -> dict[str, object]:
+    """Read desired state, control revision, priority streak, and job counts.
+
+    Counts are grouped by job state and normal/priority queue. No request text,
+    request identifiers, or consumer identities are returned.
+    """
     return read_status()
 
 
-@app.get("/v1/components")
+@app.get("/v1/components", tags=["default"], summary="Read runtime component presence")
 def components() -> dict[str, object]:
-    """Read our own process presence only; no customer identifiers or text."""
+    """Read heartbeat observations for both consumers, worker, outbox, and model.
+
+    Missing or expired observations mean UNKNOWN. A fresh heartbeat proves
+    presence, not queue progress; the model probe runs inside its own cell.
+    No customer identifiers or request text are returned.
+    """
     from translator_service.presence import read
 
     repo = repository()
@@ -94,8 +125,14 @@ def components() -> dict[str, object]:
         repo.engine.dispose()
 
 
-@app.get("/metrics", response_class=Response)
+@app.get(
+    "/metrics",
+    tags=["metrics"],
+    summary="Read Prometheus queue metrics",
+    response_class=Response,
+)
 def metrics() -> Response:
+    """Export job counts by state and queue in Prometheus text format."""
     state = read_status()
     jobs = cast(dict[str, int], state["jobs"])
     lines = ["# TYPE aelev_translator_jobs gauge"]

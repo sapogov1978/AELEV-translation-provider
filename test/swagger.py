@@ -57,15 +57,20 @@ def main() -> None:
         trusted.load_cert_chain(args.cert, args.key)
         with urlopen(base + "/openapi.json", context=trusted, timeout=10) as reply:
             schema = json.load(reply)
-        assert set(schema["paths"]) == {
+        expected_paths = {
             "/healthz",
             "/readyz",
             "/v1/status",
             "/v1/components",
             "/metrics",
         }
-        assert all(set(operation) == {"get"} for operation in schema["paths"].values())
-        for path in schema["paths"]:
+        if cfg[PREFIX + "API_TRANSLATION_ENABLED"] == "true":
+            expected_paths.add("/v1/translate")
+            assert set(schema["paths"]["/v1/translate"]) == {"post"}
+        assert set(schema["paths"]) == expected_paths
+        for path, operations in schema["paths"].items():
+            if "get" not in operations:
+                continue
             with urlopen(base + path, context=trusted, timeout=10) as reply:
                 assert reply.status == 200
         steps.append(

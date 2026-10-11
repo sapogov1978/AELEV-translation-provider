@@ -31,6 +31,8 @@ class JsonFormatter(logging.Formatter):
             "traceparent",
             "duration_ms",
             "outcome",
+            "actor_digest",
+            "queue",
         ):
             if hasattr(record, key):
                 fields[key] = getattr(record, key)
@@ -114,6 +116,7 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
             "TRANSLATOR_EMPTY_OUTPUT",
             "TRANSLATOR_CONTROL_TOKEN_LEAK",
             "TRANSLATOR_UNSUPPORTED_TARGET_LANGUAGE",
+            "TRANSLATOR_UNSUPPORTED_SOURCE_LANGUAGE",
             "TRANSLATOR_VERSION_MISMATCH",
         }
         return {

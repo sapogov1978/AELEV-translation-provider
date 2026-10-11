@@ -1,9 +1,0 @@
-# Historical build context filter; not used by translator-service.
-**
-!services/
-!services/base-screening/
-!services/base-screening/src/
-!services/base-screening/src/base_screening/
-!services/base-screening/src/base_screening/model_workload.py
-!services/base-screening/src/base_screening/madlad_translation_provider.py
-!services/base-screening/src/base_screening/translator_healthcheck.py

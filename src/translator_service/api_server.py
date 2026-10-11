@@ -1,9 +1,11 @@
-"""One lifecycle for private HTTP diagnostics and operator HTTPS/mTLS."""
+"""One lifecycle for private diagnostics and an explicitly secured operator API."""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import re
 import signal
 import ssl
 from collections.abc import Generator
@@ -17,16 +19,38 @@ from aelev_platform_ui_client import https_url
 PREFIX = "AELEV_INFRASTRUCTURE_TRANSLATOR_"
 
 
+def local_operator() -> bool:
+    """Plain HTTP is an explicit local-only mode, never a TLS fallback."""
+    return urlsplit(os.environ[PREFIX + "API_PUBLIC_URL"]).scheme == "http"
+
+
 def swagger_url() -> str:
-    """Return the owner's browser-routable HTTPS documentation address."""
-    value = https_url(os.environ[PREFIX + "API_PUBLIC_URL"])
+    """Return the owner's browser-routable documentation address."""
+    value = os.environ[PREFIX + "API_PUBLIC_URL"]
+    if local_operator():
+        if (
+            urlsplit(value).hostname not in {"localhost", "127.0.0.1", "::1"}
+            or not re.fullmatch(
+                r"(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?",
+                urlsplit(value).netloc,
+                re.IGNORECASE,
+            )
+            or os.environ[PREFIX + "ENVIRONMENT"] != "local"
+            or any(character.isspace() or ord(character) < 32 for character in value)
+            or "\\" in value
+        ):
+            raise ValueError("TRANSLATOR_HTTP_REQUIRES_LOCAL_LOOPBACK")
+    else:
+        value = https_url(value)
     parsed = urlsplit(value)
     if (
         parsed.path not in {"", "/"}
         or parsed.query
         or parsed.fragment
+        or "#" in value
         or parsed.username is not None
         or parsed.password is not None
+        or parsed.port == 0
         or "\x7f" in value
     ):
         raise ValueError("TRANSLATOR_API_PUBLIC_URL_REQUIRES_ORIGIN")
@@ -34,7 +58,7 @@ def swagger_url() -> str:
 
 
 def configurations() -> tuple[uvicorn.Config, uvicorn.Config]:
-    """Validate TLS before either listener starts; never fall back to plaintext."""
+    """Validate the selected security mode before either listener starts."""
     swagger_url()
     if os.environ[PREFIX + "API_BIND_ADDRESS"] not in {"127.0.0.1", "::1"}:
         raise ValueError("TRANSLATOR_PRIVATE_API_REQUIRES_LOOPBACK_BIND")
@@ -50,8 +74,30 @@ def configurations() -> tuple[uvicorn.Config, uvicorn.Config]:
         proxy_headers=False,
         access_log=False,
     )
+    if local_operator():
+        if os.environ[PREFIX + "API_HTTPS_BIND_ADDRESS"] not in {"127.0.0.1", "::1"}:
+            raise ValueError("TRANSLATOR_OPERATOR_HTTP_REQUIRES_LOOPBACK_BIND")
+        from translator_service.operator_auth import Settings
+        from translator_service.operator_translation import (
+            Settings as TranslationSettings,
+        )
+        from translator_service.operator_translation import enabled
+
+        Settings.environment()
+        if enabled():
+            TranslationSettings.environment()
+        operator = uvicorn.Config(
+            "translator_service.operator_api:local_app",
+            factory=True,
+            host="0.0.0.0",
+            port=operator_port,
+            proxy_headers=False,
+            access_log=False,
+        )
+        return internal, operator
     operator = uvicorn.Config(
-        "translator_service.operator_api:app",
+        "translator_service.operator_api:network_app",
+        factory=True,
         host="0.0.0.0",
         port=operator_port,
         ssl_certfile=str(tls / "server.crt"),
@@ -104,5 +150,10 @@ async def serve(servers: tuple[Server, Server]) -> None:
 
 
 if __name__ == "__main__":
+    from translator_service.runtime import JsonFormatter
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
     private, public = configurations()
     asyncio.run(serve((Server(private), Server(public))))

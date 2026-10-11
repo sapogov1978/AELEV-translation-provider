@@ -216,6 +216,20 @@ class Repository:
                 {"id": identity},
             )
 
+    def delivered_result(self, identity: str, request_digest: str) -> bytes | None:
+        """Read an exact own request's result only after the outbox Kafka ACK."""
+        with self.engine.connect() as connection:
+            raw = connection.execute(
+                text(
+                    "SELECT o.payload FROM translation_outbox o "
+                    "JOIN translation_job j USING(request_id) "
+                    "WHERE j.request_id=:id AND j.request_digest=:digest "
+                    "AND o.state='PUBLISHED' AND o.published_at IS NOT NULL"
+                ),
+                {"id": identity, "digest": request_digest},
+            ).scalar_one_or_none()
+            return bytes(raw) if raw is not None else None
+
     def control(
         self,
         action: str,
@@ -269,9 +283,11 @@ class Repository:
                 ).scalar_one():
                     raise ValueError("TRANSLATOR_CONTROL_DRAIN_REQUIRED")
                 connection.execute(
-                    text("""UPDATE translation_job SET state='PENDING',
-                    available_at=now(),lease_token=NULL,lease_until=NULL
-                    WHERE state IN ('PENDING','RUNNING')""")
+                    text(
+                        "UPDATE translation_job SET state='PENDING', "
+                        "available_at=now(),lease_token=NULL,lease_until=NULL "
+                        "WHERE state IN ('PENDING','RUNNING')"
+                    )
                 )
             revision = current + 1
             connection.execute(

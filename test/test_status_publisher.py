@@ -47,7 +47,9 @@ def test_description_is_own_technical_composition(cfg: Settings) -> None:
         else:
             assert "swagger_url" not in part
     assert value["title"] == {"ru": "Перевод текстов", "en": "Text translation"}
-    assert any("MADLAD" in part["title"]["ru"] for part in value["components"])
+    assert any(
+        "Index-Translate 9B" in part["title"]["ru"] for part in value["components"]
+    )
     assert value["service_kind"] == "INFRASTRUCTURE"
     assert value["sections"] == []
     assert [part["id"] for part in value["components"]] == list(owner.COMPONENTS)

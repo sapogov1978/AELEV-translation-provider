@@ -26,4 +26,4 @@ tests_skipped=0
 duration_seconds=0.526
 ```
 
-Исходный машинный результат сохранён в [архиве JUnit](obsolete/provisioner-regression.xml). Дата, длительность и итог проверки сохранены; повторный запуск при переоформлении не выполнялся.
+Исходный машинный результат сохранён в [архиве JUnit](https://github.com/sapogov1978/aelev/blob/d724c563053717ec84ef6fdb842fe873623c956c/services/infrastructure/translator-service/test/obsolete/provisioner-regression.xml). Дата, длительность и итог проверки сохранены; повторный запуск при переоформлении не выполнялся.

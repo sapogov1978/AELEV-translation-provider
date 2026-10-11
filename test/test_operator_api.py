@@ -45,6 +45,7 @@ def test_swagger_only_describes_existing_read_only_operations() -> None:
             client.post("/v1/translate-text", json={"text": "text"}).status_code == 404
         )
         assert client.post("/v1/status", json={}).status_code == 405
+        assert private.post("/v1/translate", json={}).status_code == 404
         assert private.get("/docs").status_code == 404
 
 
@@ -66,6 +67,32 @@ def test_documentation_is_local_and_protected_by_browser_headers() -> None:
         assert "persistAuthorization:false" in setup
 
 
+@pytest.mark.parametrize("application", [internal_app, operator_api.app])
+def test_documentation_groups_have_explicit_order_and_membership(
+    application: FastAPI,
+) -> None:
+    with client_for(application) as client:
+        schema = client.get("/openapi.json").json()
+        assert [tag["name"] for tag in schema["tags"]] == [
+            "default",
+            "translator",
+            "metrics",
+        ]
+        expected = {
+            "/healthz": "default",
+            "/readyz": "default",
+            "/v1/status": "default",
+            "/v1/components": "default",
+            "/metrics": "metrics",
+        }
+        assert set(schema["paths"]) == set(expected)
+        for path, tag in expected.items():
+            operation = schema["paths"][path]["get"]
+            assert operation["tags"] == [tag]
+            assert operation["summary"]
+            assert operation["description"]
+
+
 @pytest.mark.parametrize(
     "name,digest",
     [
@@ -85,6 +112,52 @@ def test_served_assets_match_the_pinned_release(name: str, digest: str) -> None:
         assert response.status_code == 200
         assert hashlib.sha256(response.content).hexdigest() == digest
         assert client.get("/docs/assets/other.js").status_code == 404
+
+
+@pytest.mark.parametrize(
+    "url", ["http://localhost:18496", "http://127.0.0.1:18496", "http://[::1]:18496"]
+)
+def test_explicit_local_documentation_address(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    monkeypatch.setenv(api_server.PREFIX + "ENVIRONMENT", "local")
+    monkeypatch.setenv(api_server.PREFIX + "API_PUBLIC_URL", url)
+    assert api_server.swagger_url() == url + "/docs"
+
+
+@pytest.mark.parametrize("environment", ["production", "paper", "test"])
+def test_http_never_works_outside_local(
+    monkeypatch: pytest.MonkeyPatch, environment: str
+) -> None:
+    monkeypatch.setenv(api_server.PREFIX + "ENVIRONMENT", environment)
+    monkeypatch.setenv(api_server.PREFIX + "API_PUBLIC_URL", "http://127.0.0.1:18496")
+    with pytest.raises(ValueError):
+        api_server.swagger_url()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://0.0.0.0",
+        "http://owner.invalid",
+        "http://localhost.invalid",
+        "http://127.1",
+        "http://2130706433",
+        "http://127.0.0.1:bad",
+        "http://127.0.0.1:0",
+        "http://user@localhost",
+        "http://[::1]evil",
+        "http://localhost:",
+        "http://localhost/#",
+    ],
+)
+def test_local_http_does_not_admit_remote_or_ambiguous_hosts(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    monkeypatch.setenv(api_server.PREFIX + "ENVIRONMENT", "local")
+    monkeypatch.setenv(api_server.PREFIX + "API_PUBLIC_URL", url)
+    with pytest.raises(ValueError):
+        api_server.swagger_url()
 
 
 @pytest.mark.parametrize(
@@ -124,6 +197,39 @@ def test_plaintext_host_port_cannot_be_exposed(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv(api_server.PREFIX + "API_PUBLIC_URL", "https://owner.invalid")
     monkeypatch.setenv(api_server.PREFIX + "API_BIND_ADDRESS", "0.0.0.0")
     with pytest.raises(ValueError, match="LOOPBACK"):
+        api_server.configurations()
+
+
+def test_local_operator_cannot_publish_on_wide_host_bind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in {
+        "API_PUBLIC_URL": "http://localhost:18496",
+        "ENVIRONMENT": "local",
+        "API_BIND_ADDRESS": "127.0.0.1",
+        "API_CONTAINER_PORT": "8096",
+        "API_HTTPS_CONTAINER_PORT": "8443",
+        "API_HTTPS_BIND_ADDRESS": "0.0.0.0",
+    }.items():
+        monkeypatch.setenv(api_server.PREFIX + key, value)
+    with pytest.raises(ValueError, match="LOOPBACK"):
+        api_server.configurations()
+
+
+def test_local_operator_never_starts_without_oidc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in {
+        "API_PUBLIC_URL": "http://localhost:18496",
+        "ENVIRONMENT": "local",
+        "API_BIND_ADDRESS": "127.0.0.1",
+        "API_CONTAINER_PORT": "8096",
+        "API_HTTPS_CONTAINER_PORT": "8443",
+        "API_HTTPS_BIND_ADDRESS": "127.0.0.1",
+    }.items():
+        monkeypatch.setenv(api_server.PREFIX + key, value)
+    monkeypatch.delenv(api_server.PREFIX + "API_OIDC_ISSUER", raising=False)
+    with pytest.raises(KeyError):
         api_server.configurations()
 
 

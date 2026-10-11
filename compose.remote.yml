@@ -56,6 +56,7 @@ x-role: &role
 
 x-ui-status-environment: &ui-status-environment
   <<: [*database-environment, *kafka-environment]
+  AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_DESCRIPTION_REVISION: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_DESCRIPTION_REVISION:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set in the translator-service .env file}
@@ -68,7 +69,45 @@ x-ui-status-environment: &ui-status-environment
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS:?set in the translator-service .env file}
 
+x-operator-environment: &operator-environment
+  AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_ISSUER: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_ISSUER:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_BACKCHANNEL_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_BACKCHANNEL_URL:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CLIENT_ID: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CLIENT_ID:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CA_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CA_FILE:?set in the translator-service .env file}
+
+x-operator-ca: &operator-ca
+  type: bind
+  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}/${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CA_FILE:?set in the translator-service .env file}
+  target: /run/secrets/translator-api/${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OIDC_CA_FILE:?set in the translator-service .env file}
+  read_only: true
+  bind: {create_host_path: false}
+
 services:
+  translator-api-provision:
+    <<: *image
+    profiles: [provision]
+    entrypoint: ["python", "-m", "translator_service.operator_provision"]
+    environment:
+      <<: *operator-environment
+      AELEV_INFRASTRUCTURE_TRANSLATOR_API_OPERATOR_USER: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_OPERATOR_USER:?set in the translator-service .env file}
+    volumes:
+      - *operator-ca
+      - type: bind
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_ADMIN_ROOT:?set in the translator-service .env file}
+        target: /run/secrets/status-admin
+        read_only: true
+        bind: {create_host_path: false}
+    user: "${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_PROVISION_UID:?set in the translator-service .env file}:${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID:?set in the translator-service .env file}"
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp:size=8m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    extra_hosts: ["host.docker.internal:host-gateway", "keycloak:host-gateway"]
+    networks: [translator-ingress]
+
   translator-service-status-publisher:
     <<: *image
     profiles: [ui]
@@ -179,7 +218,7 @@ services:
 
   translator-model:
     <<: *image
-    command: ["python", "-m", "translator_service.madlad_translation_provider", "serve"]
+    command: ["python", "-m", "translator_service.index_translation_provider", "serve"]
     restart: unless-stopped
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]
@@ -261,29 +300,23 @@ services:
     <<: *role
     command: ["python", "-m", "translator_service.api_server"]
     environment:
-      <<: [*database-environment, *kafka-environment]
+      <<: [*database-environment, *kafka-environment, *operator-environment]
+      AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS:?set in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS:?set loopback in the translator-service .env file}
-      AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_PUBLIC_URL:?set in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set in the translator-service .env file}
+      AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_TIMEOUT_SECONDS:?set in the translator-service .env file}
+      AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_ENABLED: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_ENABLED:?set in the translator-service .env file}
+      AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_MAX_IN_FLIGHT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_MAX_IN_FLIGHT:?set in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT:?set in the translator-service .env file}
     volumes:
       - *secret-mount
       - type: bind
-        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}/server.crt
-        target: /run/secrets/translator-api/server.crt
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}/server.key
-        target: /run/secrets/translator-api/server.key
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}/clients-ca.crt
-        target: /run/secrets/translator-api/clients-ca.crt
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}
+        target: /run/secrets/translator-api
         read_only: true
         bind: {create_host_path: false}
     secrets: [translator-database-password]
+    extra_hosts: ["host.docker.internal:host-gateway", "keycloak:host-gateway"]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
       translator-topic-provisioner: {condition: service_completed_successfully}
