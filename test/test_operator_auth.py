@@ -1,10 +1,13 @@
 """Real JWT verification and the local-only Swagger authorization boundary."""
 
 import hashlib
+import io
 import json
 import os
 import time
+import urllib.request
 from typing import Any, cast
+from unittest.mock import Mock
 
 import jwt
 import pytest
@@ -282,3 +285,116 @@ def test_disabled_translation_keeps_read_authorization(
         )
         assert "/v1/translate" not in client.get("/openapi.json").json()["paths"]
         assert client.post("/v1/translate", json={}).status_code == 404
+
+
+def jwks_client(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+    monkeypatch: pytest.MonkeyPatch,
+    extra_keys: list[dict[str, Any]] | None = None,
+) -> tuple[jwt.PyJWKClient, Mock]:
+    """Use the real JWKS parser/cache with offline HTTP responses."""
+    public = json.loads(RSAAlgorithm.to_jwk(auth[1].public_key()))
+    public.update({"kid": "unit-key", "alg": "RS256"})
+    payload = json.dumps({"keys": [*(extra_keys or []), public]}).encode()
+
+    def reply(*args: object, **kwargs: object) -> io.BytesIO:
+        return io.BytesIO(payload)
+
+    response = Mock(side_effect=reply)
+    opener = Mock()
+    opener.open = response
+    monkeypatch.setattr(urllib.request, "urlopen", response)
+    monkeypatch.setattr(urllib.request, "build_opener", Mock(return_value=opener))
+    client = jwt.PyJWKClient("https://identity.invalid/keys", lifespan=300)
+    auth[0].keys = client
+    return client, response
+
+
+@pytest.mark.parametrize("distinct", [False, True])
+def test_unknown_key_cannot_force_repeated_identity_fetches(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+    monkeypatch: pytest.MonkeyPatch,
+    distinct: bool,
+) -> None:
+    client, response = jwks_client(auth, monkeypatch)
+    good = token(auth)
+    auth[0].verify(good)
+    for index in range(3):
+        kid = "unknown-" + str(index if distinct else 0)
+        with pytest.raises(jwt.PyJWKClientError):
+            client.get_signing_key(kid)
+    assert response.call_count == 1
+    auth[0].verify(good)
+    assert response.call_count == 1
+
+
+def test_bad_rsa_key_does_not_block_the_valid_identity_key(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jwks_client(
+        auth,
+        monkeypatch,
+        [{"kty": "RSA", "kid": "bad", "alg": "RS256", "n": 42, "e": "AQAB"}],
+    )
+    assert auth[0].verify(token(auth))
+
+
+def test_valid_rotated_identity_key_is_loaded_after_refresh_cooldown(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, response = jwks_client(auth, monkeypatch)
+    auth[0].verify(token(auth))
+    rotated = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public = json.loads(RSAAlgorithm.to_jwk(rotated.public_key()))
+    public.update({"kid": "rotated-key", "alg": "RS256"})
+    payload = json.dumps({"keys": [public]}).encode()
+
+    def reply(*args: object, **kwargs: object) -> io.BytesIO:
+        return io.BytesIO(payload)
+
+    response.side_effect = reply
+    after_cooldown = time.monotonic() + 31
+    monkeypatch.setattr(time, "monotonic", lambda: after_cooldown)
+    claims = jwt.decode(token(auth), options={"verify_signature": False})
+    value = jwt.encode(
+        claims, rotated, algorithm="RS256", headers={"kid": "rotated-key"}
+    )
+    assert auth[0].verify(value)
+    assert response.call_count == 2
+
+
+def test_unknown_critical_token_extension_is_rejected(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+) -> None:
+    claims = jwt.decode(token(auth), options={"verify_signature": False})
+    value = jwt.encode(
+        claims,
+        auth[1],
+        algorithm="RS256",
+        headers={"kid": "unit-key", "crit": ["unknown"], "unknown": True},
+    )
+    with pytest.raises(HTTPException) as error:
+        auth[0].verify(value)
+    assert error.value.status_code == 401
+
+
+def test_standard_base64_padding_does_not_break_valid_rsa_tokens(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+) -> None:
+    parts = token(auth).split(".")
+    parts[-1] += "=" * (-len(parts[-1]) % 4)
+    assert auth[0].verify(".".join(parts))
+
+
+def test_hmac_token_is_rejected_before_identity_lookup(
+    auth: tuple[Verifier, rsa.RSAPrivateKey],
+) -> None:
+    lookup = Mock()
+    auth[0].keys = cast(jwt.PyJWKClient, lookup)
+    value = jwt.encode({"sub": "unit-operator"}, os.urandom(32), algorithm="HS256")
+    with pytest.raises(HTTPException) as error:
+        auth[0].verify(value)
+    assert error.value.status_code == 401
+    lookup.get_signing_key_from_jwt.assert_not_called()
