@@ -6,12 +6,13 @@ from typing import Any
 
 from sqlalchemy import URL, create_engine, text
 
-from translator_service.contracts import digest, parse, result_bytes
+from translator_service.contracts import digest, event_name, parse, result_bytes
 from translator_service.schema import verify_schema
 
 
 class Repository:
-    def __init__(self, url: str | URL) -> None:
+    def __init__(self, url: str | URL, *, execution_ref: str | None = None) -> None:
+        self.execution_ref = execution_ref
         self.engine = create_engine(
             url,
             pool_size=2,
@@ -26,13 +27,14 @@ class Repository:
     def accept(self, raw: bytes, priority: int = 100) -> None:
         if priority not in {0, 100}:
             raise ValueError("TRANSLATION_PRIORITY_INVALID")
-        event = parse(raw, "TranslationRequested")
+        event = parse(raw, event_name(raw, "TranslationRequested"))
         request_id = event["data"]["request_id"]
         with self.engine.begin() as connection:
             connection.execute(
                 text("""INSERT INTO translation_job
                 (request_id,request_digest,payload,priority)
-                VALUES(:id,:digest,:raw,:priority) ON CONFLICT DO NOTHING"""),
+                VALUES(:id,:digest,:raw,:priority)
+                ON CONFLICT DO NOTHING"""),
                 {
                     "id": request_id,
                     "digest": digest(raw),
@@ -83,7 +85,8 @@ class Repository:
             prefer_normal = control["priority_streak"] >= high_priority_burst
             row = (
                 connection.execute(
-                    text("""SELECT request_id,payload,request_digest,priority
+                    text("""SELECT request_id,payload,request_digest,priority,
+                execution_ref
                 FROM translation_job WHERE
                 (state='PENDING' AND available_at<=now()
                  OR state='RUNNING' AND lease_until<=now())
@@ -101,12 +104,20 @@ class Repository:
             )
             if row is None:
                 return None
+            v2 = json.loads(row["payload"])["data"]["schema_version"] == "2.0.0"
+            execution_ref = self.execution_ref if v2 else None
+            if v2 and not execution_ref:
+                raise RuntimeError("TRANSLATOR_EXECUTION_NOT_CONFIGURED")
             connection.execute(
                 text("""UPDATE translation_job SET state='RUNNING',
                 lease_token=:token,lease_until=now()+interval '360 seconds',
-                attempt_count=attempt_count+1
+                attempt_count=attempt_count+1,execution_ref=:execution_ref
                 WHERE request_id=:id"""),
-                {"id": row["request_id"], "token": token},
+                {
+                    "id": row["request_id"],
+                    "token": token,
+                    "execution_ref": execution_ref,
+                },
             )
             connection.execute(
                 text(
@@ -115,7 +126,7 @@ class Repository:
                 ),
                 {"priority": row["priority"]},
             )
-            return {**row, "token": token}
+            return {**row, "token": token, "execution_ref": execution_ref}
 
     def status(self) -> dict[str, Any]:
         """Return aggregate operational state without request data or identities."""

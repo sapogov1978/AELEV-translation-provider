@@ -11,8 +11,11 @@ from confluent_kafka.admin import AdminClient, ConfigResource, NewTopic
 
 from translator_service.contracts import (
     NORMAL_REQUEST_TOPIC,
+    NORMAL_REQUEST_TOPIC_V2,
     PRIORITY_REQUEST_TOPIC,
+    PRIORITY_REQUEST_TOPIC_V2,
     RESULT_TOPIC,
+    RESULT_TOPIC_V2,
 )
 from translator_service.runtime import JsonFormatter, kafka_configuration
 
@@ -31,6 +34,9 @@ def required_topics() -> dict[str, dict[str, str]]:
         PRIORITY_REQUEST_TOPIC: dict(common),
         NORMAL_REQUEST_TOPIC: dict(common),
         RESULT_TOPIC: dict(common),
+        PRIORITY_REQUEST_TOPIC_V2: dict(common),
+        NORMAL_REQUEST_TOPIC_V2: dict(common),
+        RESULT_TOPIC_V2: dict(common),
     }
 
 

@@ -185,7 +185,6 @@ def test_translate_permission_is_separate_from_read(
                 target_language=payload.target_language,
                 queue=payload.queue,
                 translated_text="Hallo",
-                translator_ref="pinned",
                 warnings=[],
             )
 

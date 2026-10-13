@@ -2,7 +2,7 @@
 
 from sqlalchemy import Engine, text
 
-HEAD = "20261010_0003"
+HEAD = "20261013_0004"
 
 
 def verify_schema(engine: Engine) -> None:

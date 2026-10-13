@@ -8,9 +8,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from jsonschema import ValidationError
 from sqlalchemy import text
 
-from translator_service.contracts import digest, parse
+from translator_service.contracts import digest, parse, result_bytes
 from translator_service.repository import Repository
 from translator_service.restore import verify
 
@@ -77,6 +78,128 @@ def success() -> dict[str, Any]:
         "warnings": [],
         "error_code": "",
     }
+
+
+def opaque_request() -> bytes:
+    """A customer asks for translation without selecting any implementation."""
+    event = json.loads(request())
+    event["type"] = "com.aelev.translation-requested.v2"
+    event["dataschema"] += "V2"
+    event["data"]["schema_version"] = "2.0.0"
+    del event["data"]["translator_ref"]
+    del event["data"]["operation"]
+    return json.dumps(event).encode()
+
+
+def test_v2_never_accepts_customer_execution_configuration() -> None:
+    raw = opaque_request()
+    assert parse(raw, "TranslationRequestedV2")["data"]["text"] == "central bank"
+    for key in ("translator_ref", "model", "execution_ref", "operation"):
+        event = json.loads(raw)
+        event["data"][key] = "customer-choice"
+        with pytest.raises(ValidationError, match="Additional properties"):
+            parse(json.dumps(event).encode(), "TranslationRequestedV2")
+
+
+def test_execution_duration_is_optional_and_bounded_without_changing_v1() -> None:
+    raw = opaque_request()
+    original = result_bytes(json.loads(raw), digest(raw), success())
+    assert (
+        "execution_duration_ms" not in parse(original, "TranslationCompletedV2")["data"]
+    )
+    for milliseconds in (0, 1250, 9007199254740991):
+        measured = result_bytes(
+            json.loads(raw),
+            digest(raw),
+            {**success(), "execution_duration_ms": milliseconds},
+        )
+        assert (
+            parse(measured, "TranslationCompletedV2")["data"]["execution_duration_ms"]
+            == milliseconds
+        )
+    for invalid in (-1, 1.5, True, None, 9007199254740992):
+        with pytest.raises(ValidationError):
+            result_bytes(
+                json.loads(raw),
+                digest(raw),
+                {**success(), "execution_duration_ms": invalid},
+            )
+    legacy = request()
+    assert (
+        "execution_duration_ms"
+        not in parse(
+            result_bytes(json.loads(legacy), digest(legacy), success()),
+            "TranslationCompleted",
+        )["data"]
+    )
+
+
+def test_v2_uses_current_execution_without_exposing_it(repo: Repository) -> None:
+    raw = opaque_request()
+    repo.execution_ref = "owner-execution-a"
+    repo.accept(raw, priority=0)
+    repo.execution_ref = "owner-execution-b"
+    repo.accept(raw, priority=0)
+    lease = repo.lease()
+    assert lease is not None
+    assert lease["execution_ref"] == "owner-execution-b"
+    assert bytes(lease["payload"]) == raw
+    assert repo.complete(lease, {**success(), "execution_duration_ms": 1250})
+    saved = bytes(repo.pending()[0]["payload"])
+    result = parse(saved, "TranslationCompletedV2")
+    assert "translator_ref" not in result["data"]
+    assert "execution_ref" not in result["data"]
+    assert result["data"]["execution_duration_ms"] == 1250
+    repo.published(lease["request_id"])
+    repo.execution_ref = "owner-execution-b"
+    repo.accept(raw)
+    assert bytes(repo.pending()[0]["payload"]) == saved
+    assert verify(repo) == {"status": "VERIFIED", "jobs": 1}
+
+
+def test_new_v2_attempt_can_use_updated_execution_and_change_translation(
+    repo: Repository,
+) -> None:
+    raw = opaque_request()
+    repo.execution_ref = "owner-execution-a"
+    repo.accept(raw)
+    lease = repo.lease()
+    assert lease is not None
+    assert repo.complete(lease, success())
+    fresh = json.loads(raw)
+    identity = str(uuid.uuid4())
+    fresh["id"] = identity
+    fresh["data"]["request_id"] = identity
+    repo.execution_ref = "owner-execution-b"
+    repo.accept(json.dumps(fresh).encode())
+    newer = repo.lease()
+    assert newer is not None
+    assert newer["execution_ref"] == "owner-execution-b"
+    response = {**success(), "translated_text": "Zentralbank, aktualisiert"}
+    assert repo.complete(newer, response)
+    assert verify(repo) == {"status": "VERIFIED", "jobs": 2}
+
+
+def test_unfinished_v2_request_can_continue_with_updated_execution(
+    repo: Repository,
+) -> None:
+    repo.execution_ref = "owner-execution-a"
+    repo.accept(opaque_request())
+    previous = repo.lease()
+    assert previous is not None
+    with repo.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE translation_job SET lease_until=now()-interval '1 second'")
+        )
+    repo.execution_ref = "owner-execution-b"
+    current = repo.lease()
+    assert current is not None
+    assert current["execution_ref"] == "owner-execution-b"
+    assert current["token"] != previous["token"]
+    assert not repo.complete(previous, success())
+    assert repo.complete(
+        current, {**success(), "translated_text": "Updated translation"}
+    )
 
 
 def test_request_contract_and_digest_are_checked() -> None:

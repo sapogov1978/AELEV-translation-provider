@@ -13,9 +13,9 @@ import pytest
 
 from translator_service import runtime
 from translator_service.contracts import (
-    NORMAL_REQUEST_TOPIC,
-    PRIORITY_REQUEST_TOPIC,
-    RESULT_TOPIC,
+    NORMAL_REQUEST_TOPIC_V2,
+    PRIORITY_REQUEST_TOPIC_V2,
+    RESULT_TOPIC_V2,
     digest,
     parse,
     result_bytes,
@@ -31,26 +31,21 @@ def test_every_record_is_bound_before_trimming(
     monkeypatch: pytest.MonkeyPatch, variant: str
 ) -> None:
     identity = str(uuid.uuid4())
-    lock = json.loads((ROOT / "translator.lock.json").read_text())
     payload = TranslationInput(
         queue="normal", source_language="en", target_language="de", text="fixture"
     )
-    raw = request_bytes(payload, "sha256:" + "b" * 64, identity, lock["translator_ref"])
+    raw = request_bytes(payload, "sha256:" + "b" * 64, identity)
     bound = digest(raw)
-    topic = NORMAL_REQUEST_TOPIC
+    topic = NORMAL_REQUEST_TOPIC_V2
     if variant == "foreign":
-        raw = request_bytes(
-            payload, "sha256:" + "b" * 64, str(uuid.uuid4()), lock["translator_ref"]
-        )
+        raw = request_bytes(payload, "sha256:" + "b" * 64, str(uuid.uuid4()))
     elif variant == "altered":
         changed = payload.model_copy(update={"text": "other fixture"})
-        raw = request_bytes(
-            changed, "sha256:" + "b" * 64, identity, lock["translator_ref"]
-        )
+        raw = request_bytes(changed, "sha256:" + "b" * 64, identity)
     elif variant == "result":
-        topic = RESULT_TOPIC
+        topic = RESULT_TOPIC_V2
         raw = result_bytes(
-            parse(raw, "TranslationRequested"),
+            parse(raw, "TranslationRequestedV2"),
             bound,
             {
                 "status": "SUCCEEDED",
@@ -59,7 +54,7 @@ def test_every_record_is_bound_before_trimming(
                 "error_code": "",
             },
         )
-    topics = (NORMAL_REQUEST_TOPIC, PRIORITY_REQUEST_TOPIC, RESULT_TOPIC)
+    topics = (NORMAL_REQUEST_TOPIC_V2, PRIORITY_REQUEST_TOPIC_V2, RESULT_TOPIC_V2)
     spans = {
         name: [{"partition": 0, "low": 0, "high": 1 if name == topic else 0}]
         for name in topics

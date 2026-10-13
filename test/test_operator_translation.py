@@ -99,12 +99,12 @@ def test_event_uses_the_pinned_contract_and_preserves_exact_text(
     payload: module.TranslationInput,
 ) -> None:
     identity = str(uuid.uuid4())
-    raw = module.request_bytes(payload, ACTOR, identity, REF)
-    event = parse(raw, "TranslationRequested")
+    raw = module.request_bytes(payload, ACTOR, identity)
+    event = parse(raw, "TranslationRequestedV2")
     assert event["id"] == identity == event["data"]["request_id"]
     assert event["time"] == event["data"]["recorded_at"]
     assert event["data"]["source_digest"] == digest(payload.text.encode())
-    assert event["data"]["translator_ref"] == REF
+    assert "translator_ref" not in event["data"]
     assert "queue" not in event["data"] and "priority" not in event["data"]
     assert event["data"]["provenance"]["input_refs"][0]["digest"] == ACTOR
 
@@ -112,8 +112,8 @@ def test_event_uses_the_pinned_contract_and_preserves_exact_text(
 @pytest.mark.parametrize(
     "queue,topic",
     [
-        ("normal", module.NORMAL_REQUEST_TOPIC),
-        ("priority", module.PRIORITY_REQUEST_TOPIC),
+        ("normal", module.NORMAL_REQUEST_TOPIC_V2),
+        ("priority", module.PRIORITY_REQUEST_TOPIC_V2),
     ],
 )
 def test_selected_topic_and_exact_result_match(
@@ -169,7 +169,7 @@ def test_selected_topic_and_exact_result_match(
     monkeypatch.setattr(module, "repository", Repo)
     monkeypatch.setattr(module, "Producer", Producer)
     monkeypatch.setattr(module, "kafka_configuration", configuration)
-    service = module.OperatorTranslations(module.Settings(1, 1), REF)
+    service = module.OperatorTranslations(module.Settings(1, 1))
     assert service.translate(payload, ACTOR).translated_text == "Hallo"
     assert sent[0][0] == topic
     assert disposed == [True]
@@ -180,7 +180,7 @@ def test_selected_topic_and_exact_result_match(
 def test_busy_rejects_before_producer_or_storage(
     payload: module.TranslationInput,
 ) -> None:
-    service = module.OperatorTranslations(module.Settings(1, 1), REF)
+    service = module.OperatorTranslations(module.Settings(1, 1))
     assert service.slots.acquire(blocking=False)
     try:
         with pytest.raises(module.OperatorTranslationError) as caught:
@@ -254,7 +254,7 @@ def test_unconfirmed_or_failed_work_is_not_reported_as_translation(
     monkeypatch.setattr(module, "kafka_configuration", configuration)
     monkeypatch.setattr(module.time, "monotonic", clock)
     monkeypatch.setattr(module.time, "sleep", no_sleep)
-    service = module.OperatorTranslations(module.Settings(1, 1), REF)
+    service = module.OperatorTranslations(module.Settings(1, 1))
     with pytest.raises(module.OperatorTranslationError) as caught:
         service.translate(payload, ACTOR)
     assert (

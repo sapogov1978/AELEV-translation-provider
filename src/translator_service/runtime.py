@@ -8,6 +8,7 @@ import signal
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -15,8 +16,9 @@ from confluent_kafka import Consumer, KafkaError, Producer
 from jsonschema import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from translator_service.contracts import RESULT_TOPIC
+from translator_service.contracts import RESULT_TOPIC, RESULT_TOPIC_V2
 from translator_service.environment import database_sslmode, database_url
+from translator_service.index_translation_provider import read_translator_lock
 from translator_service.repository import Repository
 
 LOGGER = logging.getLogger(__name__)
@@ -77,18 +79,23 @@ def repository() -> Repository:
         "verify-full",
     }:
         raise RuntimeError("TRANSLATOR_DATABASE_TLS_REQUIRED")
-    return Repository(database_url())
+    execution_ref, _ = read_translator_lock(
+        Path(os.environ["AELEV_TRANSLATOR_LOCK_PATH"])
+    )
+    return Repository(database_url(), execution_ref=execution_ref)
 
 
-def compute(data: dict[str, Any]) -> dict[str, Any]:
+def compute(data: dict[str, Any], execution_ref: str | None = None) -> dict[str, Any]:
+    v2 = data.get("schema_version") == "2.0.0"
+    if v2 and not execution_ref:
+        raise RuntimeError("TRANSLATOR_EXECUTION_NOT_CONFIGURED")
     payload = {
         "schema_version": "1.0.0",
-        **{
-            key: data[key]
-            for key in ("translator_ref", "source_language", "target_language")
-        },
+        **{key: data[key] for key in ("source_language", "target_language")},
+        "translator_ref": execution_ref if v2 else data["translator_ref"],
     }
-    if data["operation"] == "PROFILE_UNIT":
+    operation = data.get("operation", "TRANSLATE_TEXT")
+    if operation == "PROFILE_UNIT":
         payload["profile"] = {
             "subject_area": data["text"],
             "positive_terms": [],
@@ -100,7 +107,7 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
         payload.update({"text": data["text"], "source_digest": data["source_digest"]})
         route = (
             "/v1/translate-evidence"
-            if data["operation"] == "OPERATOR_REVIEW"
+            if operation == "OPERATOR_REVIEW"
             else "/v1/translate-text"
         )
     with httpx.Client(
@@ -112,6 +119,8 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
         response = client.post(route, json=payload)
     if response.status_code == 422:
         code = response.json().get("detail", "TRANSLATOR_REQUEST_INVALID")
+        if v2 and code == "TRANSLATOR_VERSION_MISMATCH":
+            raise RuntimeError("TRANSLATOR_EXECUTION_UNAVAILABLE")
         permitted = {
             "TRANSLATOR_EMPTY_OUTPUT",
             "TRANSLATOR_CONTROL_TOKEN_LEAK",
@@ -137,7 +146,7 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError("TRANSLATOR_PRIVATE_RESPONSE_INVALID")
     translated = (
         result["profile"]["subject_area"]
-        if data["operation"] == "PROFILE_UNIT"
+        if operation == "PROFILE_UNIT"
         else result["translated_text"]
     )
     if (
@@ -154,6 +163,17 @@ def compute(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def execute_translation(lease: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    """Measure only one execution, before any storage or result publication."""
+    data = json.loads(lease["payload"])["data"]
+    started = time.perf_counter()
+    result = compute(data, lease.get("execution_ref"))
+    duration_ms = round(1000 * (time.perf_counter() - started))
+    if data["schema_version"] == "2.0.0":
+        result["execution_duration_ms"] = duration_ms
+    return result, duration_ms
+
+
 def publish_once(repo: Repository, producer: Producer) -> None:
     for row in repo.pending():
         failures: list[KafkaError | None] = []
@@ -166,7 +186,9 @@ def publish_once(repo: Repository, producer: Producer) -> None:
             collected.append(error)
 
         producer.produce(
-            RESULT_TOPIC,
+            RESULT_TOPIC_V2
+            if json.loads(row["payload"])["data"]["schema_version"] == "2.0.0"
+            else RESULT_TOPIC,
             key=row["request_id"].encode(),
             value=bytes(row["payload"]),
             on_delivery=delivered,
@@ -239,7 +261,8 @@ def main() -> None:
                 "isolation.level": "read_committed",
             }
         )
-        client.subscribe([os.environ["AELEV_TRANSLATOR_REQUEST_TOPIC"]])
+        topic = os.environ["AELEV_TRANSLATOR_REQUEST_TOPIC"]
+        client.subscribe([topic, topic.removesuffix(".v1") + ".v2"])
     if args.role == "outbox":
         client = Producer(
             {**kafka_configuration(), "enable.idempotence": True, "acks": "all"}
@@ -280,13 +303,12 @@ def main() -> None:
                     if lease is None:
                         stopped.wait(1)
                         continue
-                    started = time.perf_counter()
                     try:
-                        result = compute(json.loads(lease["payload"])["data"])
+                        result, duration_ms = execute_translation(lease)
+                        envelope = json.loads(lease["payload"])
                         if not repo.complete(lease, result):
                             LOGGER.warning("translation_stale_lease")
                             continue
-                        envelope = json.loads(lease["payload"])
                         LOGGER.info(
                             "translation_completed",
                             extra={
@@ -294,9 +316,7 @@ def main() -> None:
                                 "correlationid": envelope["correlationid"],
                                 "traceparent": envelope["traceparent"],
                                 "outcome": result["status"],
-                                "duration_ms": round(
-                                    1000 * (time.perf_counter() - started)
-                                ),
+                                "duration_ms": duration_ms,
                             },
                         )
                     except (httpx.HTTPError, RuntimeError, ValueError, ValidationError):

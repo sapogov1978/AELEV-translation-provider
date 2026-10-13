@@ -27,12 +27,12 @@ from pathlib import Path
 from sqlalchemy import text
 from confluent_kafka import Consumer,Producer,TopicPartition
 from translator_service.contracts import (
- digest,parse,NORMAL_REQUEST_TOPIC,PRIORITY_REQUEST_TOPIC,RESULT_TOPIC
+ digest,parse,NORMAL_REQUEST_TOPIC_V2,PRIORITY_REQUEST_TOPIC_V2,RESULT_TOPIC_V2
 )
 from translator_service.runtime import repository,kafka_configuration
 from translator_service.operator_translation import TranslationInput,request_bytes
 action,args=sys.argv[1],json.loads(sys.argv[2])
-topics=[NORMAL_REQUEST_TOPIC,PRIORITY_REQUEST_TOPIC,RESULT_TOPIC]
+topics=[NORMAL_REQUEST_TOPIC_V2,PRIORITY_REQUEST_TOPIC_V2,RESULT_TOPIC_V2]
 lock=json.loads(Path('translator.lock.json').read_text())
 def offsets():
  c=Consumer({**kafka_configuration(),'group.id':'translator-model-validation','enable.auto.commit':False})
@@ -49,8 +49,8 @@ def offsets():
 def publish(raw,queue):
  p=Producer({**kafka_configuration(),'enable.idempotence':True,'acks':'all','message.timeout.ms':10000})
  ack=[]
- topic=PRIORITY_REQUEST_TOPIC if queue=='priority' else NORMAL_REQUEST_TOPIC
- identity=parse(raw,'TranslationRequested')['data']['request_id']
+ topic=PRIORITY_REQUEST_TOPIC_V2 if queue=='priority' else NORMAL_REQUEST_TOPIC_V2
+ identity=parse(raw,'TranslationRequestedV2')['data']['request_id']
  p.produce(topic,key=identity.encode(),value=raw,
            on_delivery=lambda err,msg:ack.append(err))
  assert p.flush(15)==0 and ack==[None]
@@ -75,11 +75,12 @@ if action=='trim':
      if message is None: continue
      assert not message.error(), 'KAFKA_RECORD_READ_FAILED'
      raw=message.value()
-     kind='TranslationCompleted' if name==RESULT_TOPIC else 'TranslationRequested'
+     kind=('TranslationCompletedV2' if name==RESULT_TOPIC_V2
+           else 'TranslationRequestedV2')
      data=parse(raw,kind)['data']
      identity=data['request_id']
      assert identity in args['digests'], 'FOREIGN_KAFKA_RECORD'
-     bound=data['request_digest'] if name==RESULT_TOPIC else digest(raw)
+     bound=data['request_digest'] if name==RESULT_TOPIC_V2 else digest(raw)
      assert bound==args['digests'][identity], 'KAFKA_RECORD_DIGEST_MISMATCH'
      next_offset=message.offset()+1
  finally: c.close()
@@ -103,7 +104,7 @@ try:
     'offsets':offsets()}))
  elif action=='send':
   payload=TranslationInput(**args['payload'])
-  raw=request_bytes(payload,'sha256:'+('b'*64),args['id'],lock['translator_ref'])
+  raw=request_bytes(payload,'sha256:'+('b'*64),args['id'])
   publish(raw,payload.queue)
   print(json.dumps({'request_digest':digest(raw)}))
  elif action in ('state','repeat'):
@@ -119,7 +120,7 @@ try:
     publish(bytes(row['payload']),args['queue']);print(json.dumps({'repeated':True}))
    else:
     result=dict(row);result.pop('payload')
-    result['result']=(parse(bytes(row['result']),'TranslationCompleted')['data']
+    result['result']=(parse(bytes(row['result']),'TranslationCompletedV2')['data']
                       if row['result'] else None)
     print(json.dumps(result,ensure_ascii=False))
  elif action=='clean':
@@ -218,9 +219,9 @@ def main() -> int:
     failure = ""
     prepared = False
     counts = {
-        "translation.requests.v1": 0,
-        "translation.requests.priority.v1": 0,
-        "translation.results.v1": 0,
+        "translation.requests.v2": 0,
+        "translation.requests.priority.v2": 0,
+        "translation.results.v2": 0,
     }
 
     def check(label: str) -> None:
@@ -243,11 +244,11 @@ def main() -> int:
         )
         digests[identity] = response["request_digest"]
         counts[
-            "translation.requests.priority.v1"
+            "translation.requests.priority.v2"
             if queue == "priority"
-            else "translation.requests.v1"
+            else "translation.requests.v2"
         ] += 1
-        counts["translation.results.v1"] += 1
+        counts["translation.results.v2"] += 1
         return identity
 
     try:
@@ -274,7 +275,7 @@ def main() -> int:
         normal = wait_result(identity)
         assert (
             normal["priority"] == 100
-            and normal["result"]["translator_ref"] == baseline["translator_ref"]
+            and "translator_ref" not in normal["result"]
         )
         assert "Deutschland" not in normal["result"]["translated_text"]
         results.append(normal)
@@ -282,11 +283,11 @@ def main() -> int:
         probe(
             "repeat", {"id": identity, "digest": digests[identity], "queue": "normal"}
         )
-        counts["translation.requests.v1"] += 1
-        counts["translation.results.v1"] += 1
+        counts["translation.requests.v2"] += 1
+        counts["translation.results.v2"] += 1
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
-            parts = probe("offsets")["translation.results.v1"]
+            parts = probe("offsets")["translation.results.v2"]
             if sum(part["high"] - part["low"] for part in parts) >= 2:
                 break
             time.sleep(1)

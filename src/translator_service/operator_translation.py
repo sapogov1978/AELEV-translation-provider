@@ -11,7 +11,6 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, Literal
 
 from confluent_kafka import KafkaException, Producer
@@ -20,12 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from translator_service.contracts import (
-    NORMAL_REQUEST_TOPIC,
-    PRIORITY_REQUEST_TOPIC,
+    NORMAL_REQUEST_TOPIC_V2,
+    PRIORITY_REQUEST_TOPIC_V2,
     digest,
     parse,
 )
-from translator_service.index_translation_provider import read_translator_lock
 from translator_service.operator_auth import PREFIX
 from translator_service.protocol import LANGUAGE_PATTERN
 from translator_service.runtime import kafka_configuration, repository
@@ -70,7 +68,6 @@ class TranslationOutput(BaseModel):
     target_language: str
     queue: Literal["normal", "priority"]
     translated_text: str
-    translator_ref: str
     warnings: list[str]
 
 
@@ -101,25 +98,23 @@ class Settings:
         return result
 
 
-def request_bytes(
-    payload: TranslationInput, actor: str, identity: str, translator_ref: str
-) -> bytes:
+def request_bytes(payload: TranslationInput, actor: str, identity: str) -> bytes:
     """Create one intent's immutable bytes, checked by the pinned public schema."""
     timestamp = datetime.now(UTC).isoformat()
     event = {
         "specversion": "1.0",
         "id": identity,
         "source": "urn:aelev:translator-service:operator",
-        "type": "com.aelev.translation-requested.v1",
+        "type": "com.aelev.translation-requested.v2",
         "time": timestamp,
         "subject": "translation/" + identity,
         "datacontenttype": "application/json",
-        "dataschema": "https://schemas.aelev.dev/events/v1#/$defs/TranslationRequested",
+        "dataschema": "https://schemas.aelev.dev/events/v1#/$defs/TranslationRequestedV2",
         "correlationid": identity,
         "causationid": identity,
         "traceparent": "00-" + uuid.uuid4().hex + "-" + uuid.uuid4().hex[:16] + "-01",
         "data": {
-            "schema_version": "1.0.0",
+            "schema_version": "2.0.0",
             "recorded_at": timestamp,
             "provenance": {
                 "owner_context": "TRANSLATOR_SERVICE",
@@ -134,24 +129,21 @@ def request_bytes(
                 ],
             },
             "request_id": identity,
-            "operation": "TRANSLATE_TEXT",
             "text": payload.text,
             "source_digest": digest(payload.text.encode()),
             "source_language": payload.source_language,
             "target_language": payload.target_language,
-            "translator_ref": translator_ref,
         },
     }
     raw = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     encoded = raw.encode()
-    parse(encoded, "TranslationRequested")
+    parse(encoded, "TranslationRequestedV2")
     return encoded
 
 
 class OperatorTranslations:
-    def __init__(self, settings: Settings, translator_ref: str) -> None:
+    def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.translator_ref = translator_ref
         self.slots = threading.BoundedSemaphore(settings.max_in_flight)
 
     def translate(self, payload: TranslationInput, actor: str) -> TranslationOutput:
@@ -162,13 +154,13 @@ class OperatorTranslations:
         deadline = time.monotonic() + self.settings.timeout_seconds
         repo = None
         try:
-            raw = request_bytes(payload, actor, identity, self.translator_ref)
-            request = parse(raw, "TranslationRequested")
+            raw = request_bytes(payload, actor, identity)
+            request = parse(raw, "TranslationRequestedV2")
             repo = repository()
             topic = (
-                PRIORITY_REQUEST_TOPIC
+                PRIORITY_REQUEST_TOPIC_V2
                 if payload.queue == "priority"
-                else NORMAL_REQUEST_TOPIC
+                else NORMAL_REQUEST_TOPIC_V2
             )
             producer = Producer(
                 {
@@ -206,7 +198,7 @@ class OperatorTranslations:
             while time.monotonic() < deadline:
                 result = repo.delivered_result(identity, digest(raw))
                 if result is not None:
-                    event = parse(result, "TranslationCompleted")
+                    event = parse(result, "TranslationCompletedV2")
                     data = event["data"]
                     if (
                         data["request_id"] != identity
@@ -219,7 +211,6 @@ class OperatorTranslations:
                                 "source_digest",
                                 "source_language",
                                 "target_language",
-                                "translator_ref",
                             )
                         )
                     ):
@@ -236,7 +227,6 @@ class OperatorTranslations:
                         target_language=data["target_language"],
                         queue=payload.queue,
                         translated_text=data["translated_text"],
-                        translator_ref=data["translator_ref"],
                         warnings=data["warnings"],
                     )
                 time.sleep(min(0.5, max(0, deadline - time.monotonic())))
@@ -261,7 +251,4 @@ class OperatorTranslations:
 
 @lru_cache(maxsize=1)
 def service() -> OperatorTranslations:
-    translator_ref, _ = read_translator_lock(
-        Path(os.environ["AELEV_TRANSLATOR_LOCK_PATH"])
-    )
-    return OperatorTranslations(Settings.environment(), translator_ref)
+    return OperatorTranslations(Settings.environment())

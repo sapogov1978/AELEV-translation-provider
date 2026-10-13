@@ -14,6 +14,24 @@ from jsonschema import Draft202012Validator, FormatChecker
 NORMAL_REQUEST_TOPIC = "translation.requests.v1"
 PRIORITY_REQUEST_TOPIC = "translation.requests.priority.v1"
 RESULT_TOPIC = "translation.results.v1"
+NORMAL_REQUEST_TOPIC_V2 = "translation.requests.v2"
+PRIORITY_REQUEST_TOPIC_V2 = "translation.requests.priority.v2"
+RESULT_TOPIC_V2 = "translation.results.v2"
+
+
+def event_name(raw: bytes, base: str) -> str:
+    """Resolve only the two supported public contract generations."""
+    if len(raw) > 262144:
+        raise ValueError("TRANSLATION_EVENT_TOO_LARGE")
+    value: Any = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("TRANSLATION_EVENT_INVALID")
+    document = cast(dict[str, Any], value)
+    if not isinstance(document.get("data"), dict):
+        raise ValueError("TRANSLATION_EVENT_INVALID")
+    return (
+        base + "V2" if document["data"].get("schema_version") == "2.0.0" else base
+    )
 
 
 def digest(raw: bytes) -> str:
@@ -48,10 +66,10 @@ def parse(raw: bytes, name: str) -> dict[str, Any]:
         data = event["data"]
         if event["time"] != data["recorded_at"]:
             raise ValueError("TRANSLATION_EVENT_TIME_MISMATCH")
-        if name == "TranslationRequested":
+        if name in {"TranslationRequested", "TranslationRequestedV2"}:
             if digest(data["text"].encode()) != data["source_digest"]:
                 raise ValueError("TRANSLATION_SOURCE_DIGEST_MISMATCH")
-            if data["operation"] == "PROFILE_UNIT" and len(data["text"]) > 500:
+            if data.get("operation") == "PROFILE_UNIT" and len(data["text"]) > 500:
                 raise ValueError("TRANSLATION_PROFILE_UNIT_TOO_LARGE")
             if event["id"] != data["request_id"]:
                 raise ValueError("TRANSLATION_REQUEST_ID_MISMATCH")
@@ -78,6 +96,9 @@ def result_bytes(
     request: dict[str, Any], request_digest: str, response: dict[str, Any]
 ) -> bytes:
     data = request["data"]
+    v2 = data["schema_version"] == "2.0.0"
+    name = "TranslationCompletedV2" if v2 else "TranslationCompleted"
+    major = 2 if v2 else 1
     timestamp = datetime.now(UTC).isoformat()
     event_id = str(
         uuid.uuid5(uuid.NAMESPACE_URL, "translation-result:" + data["request_id"])
@@ -86,16 +107,16 @@ def result_bytes(
         "specversion": "1.0",
         "id": event_id,
         "source": "urn:aelev:translator-service",
-        "type": "com.aelev.translation-completed.v1",
+        "type": f"com.aelev.translation-completed.v{major}",
         "time": timestamp,
         "subject": "translation/" + data["request_id"],
         "datacontenttype": "application/json",
-        "dataschema": "https://schemas.aelev.dev/events/v1#/$defs/TranslationCompleted",
+        "dataschema": f"https://schemas.aelev.dev/events/v1#/$defs/{name}",
         "correlationid": request["correlationid"],
         "causationid": request["id"],
         "traceparent": request["traceparent"],
         "data": {
-            "schema_version": "1.0.0",
+            "schema_version": f"{major}.0.0",
             "recorded_at": timestamp,
             "provenance": {
                 "owner_context": "TRANSLATOR_SERVICE",
@@ -104,7 +125,7 @@ def result_bytes(
                 "input_refs": [
                     {
                         "id": "urn:aelev:translation-request:" + data["request_id"],
-                        "version": "1.0.0",
+                        "version": f"{major}.0.0",
                         "digest": request_digest,
                     }
                 ],
@@ -113,12 +134,12 @@ def result_bytes(
                 key: data[key]
                 for key in (
                     "request_id",
-                    "translator_ref",
                     "source_language",
                     "target_language",
                     "source_digest",
                 )
             },
+            **({"translator_ref": data["translator_ref"]} if not v2 else {}),
             "request_digest": request_digest,
             **response,
         },
@@ -126,5 +147,5 @@ def result_bytes(
     raw = json.dumps(
         event, sort_keys=True, ensure_ascii=False, separators=(",", ":")
     ).encode()
-    parse(raw, "TranslationCompleted")
+    parse(raw, name)
     return raw

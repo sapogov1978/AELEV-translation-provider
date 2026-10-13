@@ -11,8 +11,11 @@ from fastapi import FastAPI, HTTPException, Response
 
 from translator_service.contracts import (
     NORMAL_REQUEST_TOPIC,
+    NORMAL_REQUEST_TOPIC_V2,
     PRIORITY_REQUEST_TOPIC,
+    PRIORITY_REQUEST_TOPIC_V2,
     RESULT_TOPIC,
+    RESULT_TOPIC_V2,
 )
 from translator_service.runtime import kafka_configuration, repository
 
@@ -62,6 +65,9 @@ def verify_kafka() -> None:
         PRIORITY_REQUEST_TOPIC,
         NORMAL_REQUEST_TOPIC,
         RESULT_TOPIC,
+        PRIORITY_REQUEST_TOPIC_V2,
+        NORMAL_REQUEST_TOPIC_V2,
+        RESULT_TOPIC_V2,
     }
     missing = required.difference(metadata.topics)
     if missing:
@@ -81,7 +87,7 @@ def health() -> dict[str, str]:
 
 @app.get("/readyz", tags=["default"], summary="Check storage and Kafka readiness")
 def ready() -> dict[str, str]:
-    """Check the own database, Kafka broker, and all three required topics.
+    """Check the own database, Kafka broker, and all six required topics.
 
     Return 503 when a dependency is unavailable. This probe does not prove model
     readiness or that workers are making progress.

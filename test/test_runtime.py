@@ -1,5 +1,6 @@
 """Check transport commit ordering and failed-publication recovery."""
 
+import json
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -9,6 +10,28 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from translator_service import presence, runtime, topic_provisioner
+
+
+@pytest.mark.parametrize("version", ["1.0.0", "2.0.0"])
+def test_execution_duration_measures_only_compute_and_preserves_v1(
+    monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    compute = Mock(return_value={"status": "SUCCEEDED"})
+    monkeypatch.setattr(runtime, "compute", compute)
+    monkeypatch.setattr(
+        runtime.time, "perf_counter", Mock(side_effect=[50000, 50001.25])
+    )
+    response, duration_ms = runtime.execute_translation(
+        {
+            "payload": json.dumps({"data": {"schema_version": version}}).encode(),
+            "execution_ref": "owner-only",
+        }
+    )
+    assert duration_ms == 1250
+    compute.assert_called_once_with({"schema_version": version}, "owner-only")
+    assert ("execution_duration_ms" in response) == (version == "2.0.0")
+    if version == "2.0.0":
+        assert response["execution_duration_ms"] == 1250
 
 
 def test_topic_retention_is_declared_by_translator_not_broker(
@@ -34,6 +57,9 @@ def test_topic_retention_is_declared_by_translator_not_broker(
         "translation.requests.priority.v1",
         "translation.requests.v1",
         "translation.results.v1",
+        "translation.requests.v2",
+        "translation.requests.priority.v2",
+        "translation.results.v2",
     }
     assert all(configuration == expected for configuration in topics.values())
 
@@ -67,7 +93,10 @@ def test_database_outage_never_commits_or_polls_next_message(
             del config
 
         def subscribe(self, topics: list[str]) -> None:
-            assert topics == ["translation.requests.priority.v1"]
+            assert topics == [
+                "translation.requests.priority.v1",
+                "translation.requests.priority.v2",
+            ]
 
         def poll(self, timeout: float) -> Message:
             del timeout
