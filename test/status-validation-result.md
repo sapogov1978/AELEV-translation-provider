@@ -11,7 +11,7 @@
 | Остановка собственного издателя: истечение статуса по реальному TTL и возврат | PASS |
 | Восстановление исходных контейнеров в тесте без создания/удаления данных | PASS |
 
-Модульные проверки: `docker run --rm --network none aelev/translator-service:test poetry run pytest -q`; конфигурация: `python3.13 -m pytest -q test/test_configuration.py`. Для воспроизведения нужен Python 3.13 и установленный клиент из собственного `vendor`; версии инструментов закреплены в Poetry lock. Браузерные команды и подготовка удостоверений описаны в [README](../README.md#собственное-состояние-в-platform-ui).
+Модульные проверки: `docker run --rm --network none aelev/translator-service:test poetry run pytest -q`; конфигурация: `python3.13 -m pytest -q test/test_configuration.py`. Для воспроизведения нужен Python 3.13 и установленный клиент из собственного `vendor`; версии инструментов закреплены в Poetry lock. Браузерные команды и подготовка удостоверений описаны в [README](../USER_MANUAL.md#диагностика-и-восстановление).
 
 Нативные части проверялись отдельным запуском: [полный отчёт этапов](status-native-result.md), [снимок](status-native.png). Последующий запуск проверял только `--component publisher`: [отчёт](status-publication-result.md), [снимок](status-publication.png). Ни один частичный запуск не выдаётся за проверку всех частей.
 
