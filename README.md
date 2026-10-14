@@ -30,4 +30,4 @@ docker compose --env-file .env ps
 
 ## Документация
 
-Карта каталога — [index.md](index.md), нормативная граница — [SPEC](SPEC.md), установка и эксплуатация — [USER_MANUAL](USER_MANUAL.md), HTTP — [ENDPOINTS](ENDPOINTS.md), Kafka-контракт — [translation API](../../../docs/api/translation.md), незавершённые работы — [TASKS](TASKS.md), история — [CHANGELOG](CHANGELOG.md).
+Карта каталога — [index.md](index.md), нормативная граница — [SPEC](SPEC.md), установка и эксплуатация — [USER_MANUAL](USER_MANUAL.md), HTTP — [ENDPOINTS](ENDPOINTS.md), Kafka-контракт — [translation API](../../../docs/api/translation.md), текущие задачи и допуск площадки — [TASKS](TASKS.md), история — [CHANGELOG](CHANGELOG.md).

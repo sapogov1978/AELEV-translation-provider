@@ -6,7 +6,7 @@
 | Нормативные гарантии | [SPEC.md](SPEC.md) |
 | Установка, Swagger, управление и восстановление | [USER_MANUAL.md](USER_MANUAL.md) |
 | Все HTTP endpoints и права | [ENDPOINTS.md](ENDPOINTS.md) |
-| Незавершённые работы | [TASKS.md](TASKS.md) |
+| Текущие задачи и допуск площадки | [TASKS.md](TASKS.md) |
 | История изменений | [CHANGELOG.md](CHANGELOG.md) |
 | Backend и миграции | `src/translator_service/`, `alembic/` |
 | Телеметрия владельца | `src/translator_service/observability.py`, `observability/` |
