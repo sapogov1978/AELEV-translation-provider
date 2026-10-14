@@ -14,9 +14,11 @@ from typing import Any
 import httpx
 from confluent_kafka import Consumer, KafkaError, Producer
 from jsonschema import ValidationError
+from opentelemetry.trace import SpanKind
 from sqlalchemy.exc import SQLAlchemyError
 
-from translator_service.contracts import RESULT_TOPIC, RESULT_TOPIC_V2
+from translator_service import observability
+from translator_service.contracts import RESULT_TOPIC, RESULT_TOPIC_V2, digest
 from translator_service.environment import database_sslmode, database_url
 from translator_service.index_translation_provider import read_translator_lock
 from translator_service.repository import Repository
@@ -65,7 +67,7 @@ def kafka_configuration() -> dict[str, Any]:
             ):
                 raise RuntimeError("TRANSLATOR_KAFKA_IDENTITY_MISSING")
             config[target] = os.path.join(
-                os.environ["AELEV_TRANSLATOR_SECRET_ROOT"], filename
+                os.environ["AELEV_TRANSLATOR_KAFKA_SECRET_ROOT"], filename
             )
     return config
 
@@ -73,11 +75,7 @@ def kafka_configuration() -> dict[str, Any]:
 def repository() -> Repository:
     if os.environ.get(
         "AELEV_ENVIRONMENT", "production"
-    ) != "local" and database_sslmode() not in {
-        "require",
-        "verify-ca",
-        "verify-full",
-    }:
+    ) != "local" and database_sslmode() != "verify-full":
         raise RuntimeError("TRANSLATOR_DATABASE_TLS_REQUIRED")
     execution_ref, _ = read_translator_lock(
         Path(os.environ["AELEV_TRANSLATOR_LOCK_PATH"])
@@ -163,11 +161,75 @@ def compute(data: dict[str, Any], execution_ref: str | None = None) -> dict[str,
     }
 
 
-def execute_translation(lease: dict[str, Any]) -> tuple[dict[str, Any], int]:
+def _translation_segments(text: str) -> tuple[str, ...]:
+    segments: list[str] = []
+    for paragraph in text.splitlines():
+        remaining = paragraph.strip()
+        while remaining:
+            if len(remaining) <= 800:
+                segments.append(remaining)
+                break
+            boundary = remaining.rfind(" ", 0, 801)
+            if boundary < 400:
+                boundary = 800
+            segments.append(remaining[:boundary].strip())
+            remaining = remaining[boundary:].strip()
+    return tuple(segments)
+
+
+def execute_translation(
+    lease: dict[str, Any], repo: Repository | None = None
+) -> tuple[dict[str, Any], int]:
     """Measure only one execution, before any storage or result publication."""
     data = json.loads(lease["payload"])["data"]
     started = time.perf_counter()
-    result = compute(data, lease.get("execution_ref"))
+    segments = (
+        _translation_segments(data["text"])
+        if repo is not None
+        and data.get("operation", "TRANSLATE_TEXT") == "TRANSLATE_TEXT"
+        else ()
+    )
+    result: dict[str, Any]
+    if not segments:
+        result = compute(data, lease.get("execution_ref"))
+    else:
+        assert repo is not None
+        execution_ref = lease.get("execution_ref") or data.get("translator_ref")
+        if not isinstance(execution_ref, str) or not execution_ref:
+            raise RuntimeError("TRANSLATOR_EXECUTION_NOT_CONFIGURED")
+        completed = repo.prepare_segments(lease, segments, execution_ref)
+        translated: list[str] = []
+        warnings: list[str] = []
+        result = {}
+        for index, segment in enumerate(segments):
+            checkpoint = completed.get(index)
+            if checkpoint is None:
+                segment_data = {
+                    **data,
+                    "text": segment,
+                    "source_digest": digest(segment.encode()),
+                }
+                segment_result = compute(segment_data, lease.get("execution_ref"))
+                if segment_result["status"] != "SUCCEEDED":
+                    result = segment_result
+                    break
+                checkpoint = (
+                    segment_result["translated_text"],
+                    list(segment_result.get("warnings", [])),
+                )
+                if not repo.complete_segment(
+                    lease, index, checkpoint[0], checkpoint[1]
+                ):
+                    raise RuntimeError("TRANSLATOR_STALE_LEASE")
+            translated.append(checkpoint[0])
+            warnings.extend(checkpoint[1])
+        else:
+            result = {
+                "status": "SUCCEEDED",
+                "translated_text": "\n".join(translated),
+                "warnings": list(dict.fromkeys(warnings)),
+                "error_code": "",
+            }
     duration_ms = round(1000 * (time.perf_counter() - started))
     if data["schema_version"] == "2.0.0":
         result["execution_duration_ms"] = duration_ms
@@ -176,6 +238,7 @@ def execute_translation(lease: dict[str, Any]) -> tuple[dict[str, Any], int]:
 
 def publish_once(repo: Repository, producer: Producer) -> None:
     for row in repo.pending():
+        envelope = json.loads(row["payload"])
         failures: list[KafkaError | None] = []
 
         def delivered(
@@ -185,18 +248,21 @@ def publish_once(repo: Repository, producer: Producer) -> None:
         ) -> None:
             collected.append(error)
 
-        producer.produce(
-            RESULT_TOPIC_V2
-            if json.loads(row["payload"])["data"]["schema_version"] == "2.0.0"
-            else RESULT_TOPIC,
-            key=row["request_id"].encode(),
-            value=bytes(row["payload"]),
-            on_delivery=delivered,
-        )
-        outstanding = producer.flush(10)
-        if outstanding or len(failures) != 1 or failures[0] is not None:
-            raise RuntimeError("TRANSLATOR_KAFKA_PUBLISH_FAILED")
-        repo.published(row["request_id"])
+        with observability.event_span(
+            "publish-result", envelope.get("traceparent", ""), kind=SpanKind.PRODUCER
+        ):
+            producer.produce(
+                RESULT_TOPIC_V2
+                if envelope["data"]["schema_version"] == "2.0.0"
+                else RESULT_TOPIC,
+                key=row["request_id"].encode(),
+                value=bytes(row["payload"]),
+                on_delivery=delivered,
+            )
+            outstanding = producer.flush(10)
+            if outstanding or len(failures) != 1 or failures[0] is not None:
+                raise RuntimeError("TRANSLATOR_KAFKA_PUBLISH_FAILED")
+            repo.published(row["request_id"])
 
 
 def main() -> None:
@@ -222,6 +288,7 @@ def main() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     logging.basicConfig(level=logging.INFO, handlers=[handler])
+    observability.configure(args.role)
     repo = repository()
     if args.role in {"health", "status"}:
         if args.role == "status":
@@ -283,15 +350,24 @@ def main() -> None:
                         raise RuntimeError("TRANSLATOR_KAFKA_READ_FAILED")
                     raw = message.value() or b""
                     try:
-                        repo.accept(
-                            raw, int(os.environ["AELEV_TRANSLATOR_REQUEST_PRIORITY"])
-                        )
-                    except (ValueError, ValidationError):
-                        repo.quarantine(
-                            f"{message.topic()}:{message.partition()}:{message.offset()}",
-                            raw,
-                            "TRANSLATION_CONTRACT_INVALID",
-                        )
+                        traceparent = json.loads(raw).get("traceparent", "")
+                    except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+                        traceparent = ""
+                    with observability.event_span(
+                        "consume-request", traceparent, kind=SpanKind.CONSUMER
+                    ):
+                        try:
+                            repo.accept(
+                                raw,
+                                int(os.environ["AELEV_TRANSLATOR_REQUEST_PRIORITY"]),
+                            )
+                        except (ValueError, ValidationError):
+                            repo.quarantine(
+                                f"{message.topic()}:{message.partition()}:"
+                                f"{message.offset()}",
+                                raw,
+                                "TRANSLATION_CONTRACT_INVALID",
+                            )
                     client.commit(message=message, asynchronous=False)
                 elif args.role == "outbox":
                     publish_once(repo, client)
@@ -303,22 +379,29 @@ def main() -> None:
                     if lease is None:
                         stopped.wait(1)
                         continue
+                    envelope = json.loads(lease["payload"])
                     try:
-                        result, duration_ms = execute_translation(lease)
-                        envelope = json.loads(lease["payload"])
-                        if not repo.complete(lease, result):
-                            LOGGER.warning("translation_stale_lease")
-                            continue
-                        LOGGER.info(
-                            "translation_completed",
-                            extra={
-                                "request_id": lease["request_id"],
-                                "correlationid": envelope["correlationid"],
-                                "traceparent": envelope["traceparent"],
-                                "outcome": result["status"],
-                                "duration_ms": duration_ms,
-                            },
-                        )
+                        with observability.event_span(
+                            "translate",
+                            envelope.get("traceparent", ""),
+                            kind=SpanKind.CONSUMER,
+                        ) as span:
+                            result, duration_ms = execute_translation(lease, repo)
+                            span.set_attribute("aelev.outcome", result["status"])
+                            span.set_attribute("aelev.duration_ms", duration_ms)
+                            if not repo.complete(lease, result):
+                                LOGGER.warning("translation_stale_lease")
+                                continue
+                            LOGGER.info(
+                                "translation_completed",
+                                extra={
+                                    "request_id": lease["request_id"],
+                                    "correlationid": envelope["correlationid"],
+                                    "traceparent": envelope["traceparent"],
+                                    "outcome": result["status"],
+                                    "duration_ms": duration_ms,
+                                },
+                            )
                     except (httpx.HTTPError, RuntimeError, ValueError, ValidationError):
                         repo.retry(lease)
                         LOGGER.warning("translation_model_retry")

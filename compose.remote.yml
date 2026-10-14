@@ -14,12 +14,16 @@ x-database-environment: &database-environment
   AELEV_TRANSLATOR_DATABASE_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_PORT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_PORT in the translator-service .env file}
   AELEV_TRANSLATOR_DATABASE_NAME: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME in the translator-service .env file}
   AELEV_TRANSLATOR_DATABASE_USER: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER in the translator-service .env file}
-  AELEV_TRANSLATOR_DATABASE_PASSWORD_FILE: /run/secrets/translator-database-password
+  AELEV_TRANSLATOR_DATABASE_PASSWORD_FILE: /run/secrets/database/postgres-password
   AELEV_TRANSLATOR_DATABASE_SSLMODE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_SSLMODE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_SSLMODE in the translator-service .env file}
   AELEV_TRANSLATOR_DATABASE_CA_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CA_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CA_FILE; use NONE when unused}
   AELEV_TRANSLATOR_DATABASE_CLIENT_CERT_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CLIENT_CERT_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CLIENT_CERT_FILE; use NONE when unused}
   AELEV_TRANSLATOR_DATABASE_CLIENT_KEY_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CLIENT_KEY_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CLIENT_KEY_FILE; use NONE when unused}
-  AELEV_TRANSLATOR_SECRET_ROOT: /run/secrets/translator
+  AELEV_TRANSLATOR_DATABASE_SECRET_ROOT: /run/secrets/database
+  AELEV_TRANSLATOR_OTLP_HTTP_ENDPOINT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_OTLP_HTTP_ENDPOINT?set empty for local without telemetry or an HTTPS durable sender endpoint}
+  AELEV_TRANSLATOR_TELEMETRY_CA_FILE: /run/secrets/telemetry/client/sender-ca.crt
+  AELEV_TRANSLATOR_TELEMETRY_CLIENT_CERT_FILE: /run/secrets/telemetry/client/runtime.crt
+  AELEV_TRANSLATOR_TELEMETRY_CLIENT_KEY_FILE: /run/secrets/telemetry/client/runtime.key
 
 x-kafka-environment: &kafka-environment
   AELEV_ENVIRONMENT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT in the translator-service .env file}
@@ -28,6 +32,7 @@ x-kafka-environment: &kafka-environment
   AELEV_KAFKA_CA_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CA_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CA_FILE; use NONE for local PLAINTEXT}
   AELEV_KAFKA_CLIENT_CERT_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CLIENT_CERT_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CLIENT_CERT_FILE; use NONE for local PLAINTEXT}
   AELEV_KAFKA_CLIENT_KEY_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CLIENT_KEY_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_CLIENT_KEY_FILE; use NONE for local PLAINTEXT}
+  AELEV_TRANSLATOR_KAFKA_SECRET_ROOT: /run/secrets/kafka
 
 x-topic-environment: &topic-environment
   AELEV_TRANSLATOR_TOPIC_PARTITIONS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_PARTITIONS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_PARTITIONS in the translator-service .env file}
@@ -37,10 +42,34 @@ x-topic-environment: &topic-environment
   AELEV_TRANSLATOR_TOPIC_MAX_MESSAGE_BYTES: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_MAX_MESSAGE_BYTES:?set AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_MAX_MESSAGE_BYTES in the translator-service .env file}
   AELEV_TRANSLATOR_TOPIC_MIN_INSYNC_REPLICAS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_MIN_INSYNC_REPLICAS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_MIN_INSYNC_REPLICAS in the translator-service .env file}
 
-x-secret-mount: &secret-mount
+x-database-identity: &database-identity
   type: bind
-  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT in the translator-service .env file}
-  target: /run/secrets/translator
+  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_SECRET_ROOT in the translator-service .env file}
+  target: /run/secrets/database
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-kafka-identity: &kafka-identity
+  type: bind
+  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_SECRET_ROOT in the translator-service .env file}
+  target: /run/secrets/kafka
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-kafka-admin-identity: &kafka-admin-identity
+  type: bind
+  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_SECRET_ROOT in the translator-service .env file}
+  target: /run/secrets/kafka-admin
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-telemetry-identity: &telemetry-identity
+  type: bind
+  source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SECRET_ROOT in the translator-service .env file}/client
+  target: /run/secrets/telemetry/client
   read_only: true
   bind:
     create_host_path: false
@@ -131,8 +160,8 @@ services:
         target: /run/secrets/status
         read_only: true
         bind: {create_host_path: false}
-      - *secret-mount
-    secrets: [translator-database-password]
+      - *database-identity
+      - *kafka-identity
     networks: [translator-data, kafka, translator-ingress]
     healthcheck:
       test: ["CMD", "python", "-m", "translator_service.status_publisher" , "health"]
@@ -174,12 +203,11 @@ services:
     environment:
       POSTGRES_DB: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME in the translator-service .env file}
       POSTGRES_USER: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER in the translator-service .env file}
-      POSTGRES_PASSWORD_FILE: /run/secrets/translator-database-password
+      POSTGRES_PASSWORD_FILE: /run/secrets/database/postgres-password
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums
     volumes:
       - translator-database-data:/var/lib/postgresql/data
-      - *secret-mount
-    secrets: [translator-database-password]
+      - *database-identity
     mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_MEMORY_LIMIT in the translator-service .env file}
     cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_CPUS in the translator-service .env file}
     healthcheck:
@@ -196,8 +224,7 @@ services:
     <<: *role
     command: ["alembic", "upgrade", "head"]
     environment: *database-environment
-    volumes: [*secret-mount]
-    secrets: [translator-database-password]
+    volumes: [*database-identity]
     restart: "no"
     depends_on:
       translator-database: {condition: service_healthy, required: false}
@@ -211,8 +238,8 @@ services:
       AELEV_KAFKA_CA_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CA_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CA_FILE; use NONE for local PLAINTEXT}
       AELEV_KAFKA_CLIENT_CERT_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_CERT_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_CERT_FILE; use NONE for local PLAINTEXT}
       AELEV_KAFKA_CLIENT_KEY_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_KEY_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_KEY_FILE; use NONE for local PLAINTEXT}
-      AELEV_TRANSLATOR_SECRET_ROOT: /run/secrets/translator
-    volumes: [*secret-mount]
+      AELEV_TRANSLATOR_KAFKA_SECRET_ROOT: /run/secrets/kafka-admin
+    volumes: [*kafka-admin-identity]
     restart: on-failure
     networks: [kafka]
 
@@ -245,12 +272,11 @@ services:
       AELEV_TRANSLATOR_KAFKA_GROUP: ${AELEV_INFRASTRUCTURE_TRANSLATOR_PRIORITY_KAFKA_GROUP:?set AELEV_INFRASTRUCTURE_TRANSLATOR_PRIORITY_KAFKA_GROUP in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TOPIC: translation.requests.priority.v1
       AELEV_TRANSLATOR_REQUEST_PRIORITY: "0"
-    volumes: [*secret-mount]
-    secrets: [translator-database-password]
+    volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
       translator-topic-provisioner: {condition: service_completed_successfully}
-    networks: [translator-data, kafka]
+    networks: [translator-data, kafka, translator-telemetry]
 
   translator-normal-consumer:
     <<: *role
@@ -260,12 +286,11 @@ services:
       AELEV_TRANSLATOR_KAFKA_GROUP: ${AELEV_INFRASTRUCTURE_TRANSLATOR_NORMAL_KAFKA_GROUP:?set AELEV_INFRASTRUCTURE_TRANSLATOR_NORMAL_KAFKA_GROUP in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TOPIC: translation.requests.v1
       AELEV_TRANSLATOR_REQUEST_PRIORITY: "100"
-    volumes: [*secret-mount]
-    secrets: [translator-database-password]
+    volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
       translator-topic-provisioner: {condition: service_completed_successfully}
-    networks: [translator-data, kafka]
+    networks: [translator-data, kafka, translator-telemetry]
 
   translator-worker:
     <<: *role
@@ -276,25 +301,24 @@ services:
       AELEV_TRANSLATOR_HIGH_PRIORITY_BURST: ${AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST:?set AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST in the translator-service .env file}
     volumes:
       - translator-model-socket:/run/aelev-translator:ro
-      - *secret-mount
-    secrets: [translator-database-password]
+      - *database-identity
+      - *telemetry-identity
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
       translator-model: {condition: service_healthy}
     stop_grace_period: 250s
-    networks: [translator-data]
+    networks: [translator-data, translator-telemetry]
 
   translator-outbox:
     <<: *role
     command: ["python", "-m", "translator_service.runtime", "outbox"]
     environment:
       <<: [*database-environment, *kafka-environment]
-    volumes: [*secret-mount]
-    secrets: [translator-database-password]
+    volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
       translator-topic-provisioner: {condition: service_completed_successfully}
-    networks: [translator-data, kafka]
+    networks: [translator-data, kafka, translator-telemetry]
 
   translator-api:
     <<: *role
@@ -309,13 +333,14 @@ services:
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_MAX_IN_FLIGHT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TRANSLATION_MAX_IN_FLIGHT:?set in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT:?set in the translator-service .env file}
     volumes:
-      - *secret-mount
+      - *database-identity
+      - *kafka-identity
+      - *telemetry-identity
       - type: bind
         source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_TLS_ROOT:?set in the translator-service .env file}
         target: /run/secrets/translator-api
         read_only: true
         bind: {create_host_path: false}
-    secrets: [translator-database-password]
     extra_hosts: ["host.docker.internal:host-gateway", "keycloak:host-gateway"]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
@@ -332,7 +357,54 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-    networks: [translator-data, kafka, translator-ingress]
+    networks: [translator-data, kafka, translator-ingress, translator-telemetry]
+
+  translator-telemetry-sender:
+    image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SENDER_IMAGE:?set in the translator-service .env file}
+    profiles: [telemetry]
+    command: [python, /opt/aelev/delivery.py, run, --config, /etc/aelev/sender.local.json]
+    user: "10001:10001"
+    group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SECRET_GID:?set in the translator-service .env file}"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_MEMORY_LIMIT:?set in the translator-service .env file}
+    extra_hosts: ["delivery:host-gateway"]
+    volumes:
+      - type: bind
+        source: ./observability
+        target: /etc/aelev
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SECRET_ROOT:?set in the translator-service .env file}/sender
+        target: /run/secrets/telemetry/sender
+        read_only: true
+        bind: {create_host_path: false}
+      - translator-telemetry-data:/var/lib/delivery
+    networks: [translator-telemetry, translator-telemetry-egress]
+    depends_on:
+      translator-api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, /opt/aelev/delivery.py, health, --config, /etc/aelev/sender.local.json]
+      interval: 10s
+      timeout: 15s
+      retries: 6
+
+  translator-telemetry-data-init:
+    image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SENDER_IMAGE:?set in the translator-service .env file}
+    profiles: [provision]
+    network_mode: none
+    user: "0:0"
+    entrypoint: [python, -c]
+    command: ["import os; os.chown('/journal',10001,10001); os.chmod('/journal',0o700)"]
+    restart: "no"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: [no-new-privileges:true]
+    volumes: [translator-telemetry-data:/journal]
 
 volumes:
   translator-status-data:
@@ -340,18 +412,21 @@ volumes:
   translator-database-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME in the translator-service .env file}
   translator-model-socket:
+  translator-telemetry-data:
+    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_VOLUME:?set in the translator-service .env file}
 
 networks:
   translator-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NETWORK:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NETWORK in the translator-service .env file}
-    internal: true
+    internal: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NETWORK_INTERNAL:?set true for bundled local PostgreSQL or false for a routable remote database}
   kafka:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_NETWORK:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_NETWORK in the translator-service .env file}
     external: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_NETWORK_EXTERNAL:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_NETWORK_EXTERNAL in the translator-service .env file}
   translator-ingress:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK in the translator-service .env file}
     external: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK_EXTERNAL:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_NETWORK_EXTERNAL in the translator-service .env file}
-
-secrets:
-  translator-database-password:
-    file: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_ROOT in the translator-service .env file}/postgres-password
+  translator-telemetry:
+    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_NETWORK:?set in the translator-service .env file}
+    internal: true
+  translator-telemetry-egress:
+    name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_EGRESS_NETWORK:?set in the translator-service .env file}

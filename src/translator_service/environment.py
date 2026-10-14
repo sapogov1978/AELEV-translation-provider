@@ -9,13 +9,13 @@ from sqlalchemy import URL
 __all__ = ["database_sslmode", "database_url", "getenv"]
 
 
-def _secret_path(environment_name: str) -> str:
+def _secret_path(environment_name: str, root_name: str) -> str:
     filename = os.environ.get(environment_name, "NONE")
     if filename == "NONE":
         return ""
     if not filename or Path(filename).name != filename:
         raise RuntimeError("TRANSLATOR_SECRET_FILENAME_INVALID")
-    return str(Path(os.environ["AELEV_TRANSLATOR_SECRET_ROOT"]) / filename)
+    return str(Path(os.environ[root_name]) / filename)
 
 
 def database_sslmode() -> str:
@@ -35,7 +35,9 @@ def database_url() -> str | URL:
         "sslcert": "AELEV_TRANSLATOR_DATABASE_CLIENT_CERT_FILE",
         "sslkey": "AELEV_TRANSLATOR_DATABASE_CLIENT_KEY_FILE",
     }.items():
-        value = _secret_path(environment_name)
+        value = _secret_path(
+            environment_name, "AELEV_TRANSLATOR_DATABASE_SECRET_ROOT"
+        )
         if value:
             query[key] = value
     return URL.create(

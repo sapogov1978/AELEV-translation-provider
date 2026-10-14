@@ -14,6 +14,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from translator_service import operator_translation
 from translator_service.api import app as internal_app
+from translator_service.observability import instrument_api
 from translator_service.operator_auth import TRANSLATE_ROLE, Settings, Verifier
 from translator_service.operator_translation import TranslationInput, TranslationOutput
 
@@ -144,6 +145,8 @@ def create_app(
             )
     else:
         application.include_router(operations)
+
+    instrument_api(application)
 
     if settings is not None and enable_translation:
         application.add_middleware(TranslationBodyLimit)

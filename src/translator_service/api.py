@@ -17,6 +17,7 @@ from translator_service.contracts import (
     RESULT_TOPIC,
     RESULT_TOPIC_V2,
 )
+from translator_service.observability import instrument_api
 from translator_service.runtime import kafka_configuration, repository
 
 app = FastAPI(
@@ -35,6 +36,7 @@ app = FastAPI(
         {"name": "metrics", "description": "Prometheus metrics."},
     ],
 )
+instrument_api(app)
 
 
 class _TopicMetadata(Protocol):

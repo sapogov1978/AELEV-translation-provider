@@ -77,7 +77,7 @@ def test_only_presence_projection_has_retention() -> None:
     assert "DELETE FROM translation_runtime_presence " in source
     assert "DELETE FROM translation_jobs" not in source
     assert "DELETE FROM translation_results" not in source
-    assert HEAD == "20261013_0004"
+    assert HEAD == "20261014_0005"
 
 
 def test_model_failure_is_uncertainty(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -150,10 +150,12 @@ async def serve(servers: tuple[Server, Server]) -> None:
 
 
 if __name__ == "__main__":
+    from translator_service import observability
     from translator_service.runtime import JsonFormatter
 
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     logging.basicConfig(level=logging.INFO, handlers=[handler])
+    observability.configure("api")
     private, public = configurations()
     asyncio.run(serve((Server(private), Server(public))))

@@ -182,6 +182,120 @@ class Repository:
             )
             return True
 
+    def prepare_segments(
+        self,
+        lease: dict[str, Any],
+        segments: tuple[str, ...],
+        execution_ref: str,
+    ) -> dict[int, tuple[str, list[str]]]:
+        """Create or resume exact per-segment checkpoints for one fenced lease."""
+        if not segments or not execution_ref:
+            raise ValueError("TRANSLATOR_SEGMENTS_INVALID")
+        expected = [(digest(value.encode()), value) for value in segments]
+        with self.engine.begin() as connection:
+            owned = connection.execute(
+                text(
+                    "SELECT request_id FROM translation_job WHERE request_id=:id "
+                    "AND state='RUNNING' AND lease_token=:token "
+                    "AND lease_until>now() FOR UPDATE"
+                ),
+                {"id": lease["request_id"], "token": lease["token"]},
+            ).first()
+            if owned is None:
+                raise RuntimeError("TRANSLATOR_STALE_LEASE")
+            rows = list(
+                connection.execute(
+                    text(
+                        "SELECT segment_index,execution_ref,source_digest,source_text,"
+                        "translated_text,warnings FROM translation_segment "
+                        "WHERE request_id=:id ORDER BY segment_index"
+                    ),
+                    {"id": lease["request_id"]},
+                ).mappings()
+            )
+            matches = len(rows) == len(expected) and all(
+                row["segment_index"] == index
+                and row["execution_ref"] == execution_ref
+                and row["source_digest"] == source_digest
+                and row["source_text"] == source_text
+                for index, (row, (source_digest, source_text)) in enumerate(
+                    zip(rows, expected, strict=True)
+                )
+            )
+            if rows and not matches:
+                connection.execute(
+                    text("DELETE FROM translation_segment WHERE request_id=:id"),
+                    {"id": lease["request_id"]},
+                )
+                rows = []
+            if not rows:
+                connection.execute(
+                    text(
+                        "INSERT INTO translation_segment "
+                        "(request_id,segment_index,execution_ref,"
+                        "source_digest,source_text) "
+                        "VALUES(:id,:index,:execution_ref,:digest,:text)"
+                    ),
+                    [
+                        {
+                            "id": lease["request_id"],
+                            "index": index,
+                            "execution_ref": execution_ref,
+                            "digest": source_digest,
+                            "text": source_text,
+                        }
+                        for index, (source_digest, source_text) in enumerate(expected)
+                    ],
+                )
+                return {}
+            return {
+                int(row["segment_index"]): (
+                    str(row["translated_text"]),
+                    list(row["warnings"]),
+                )
+                for row in rows
+                if row["translated_text"] is not None
+                and isinstance(row["warnings"], list)
+            }
+
+    def complete_segment(
+        self,
+        lease: dict[str, Any],
+        index: int,
+        translated_text: str,
+        warnings: list[str],
+    ) -> bool:
+        """Persist one segment and renew only the still-owned job lease."""
+        with self.engine.begin() as connection:
+            changed = connection.execute(
+                text(
+                    "UPDATE translation_segment s SET translated_text=:translated,"
+                    "warnings=CAST(:warnings AS jsonb),completed_at=now() "
+                    "FROM translation_job j WHERE s.request_id=:id "
+                    "AND s.segment_index=:index AND j.request_id=s.request_id "
+                    "AND j.state='RUNNING' AND j.lease_token=:token "
+                    "AND j.lease_until>now() RETURNING s.segment_index"
+                ),
+                {
+                    "id": lease["request_id"],
+                    "index": index,
+                    "token": lease["token"],
+                    "translated": translated_text,
+                    "warnings": json.dumps(warnings),
+                },
+            ).first()
+            if changed is None:
+                return False
+            connection.execute(
+                text(
+                    "UPDATE translation_job SET "
+                    "lease_until=now()+interval '360 seconds' "
+                    "WHERE request_id=:id AND lease_token=:token"
+                ),
+                {"id": lease["request_id"], "token": lease["token"]},
+            )
+            return True
+
     def retry(
         self, lease: dict[str, Any], error_code: str = "TRANSLATOR_UNAVAILABLE"
     ) -> None:

@@ -26,8 +26,6 @@ ROLES = {
     "translator-priority-consumer",
     "translator-topic-provisioner",
 }
-
-
 def _clean_environment() -> dict[str, str]:
     environment = {
         key: value
@@ -111,6 +109,32 @@ class TranslatorConfigurationTest(unittest.TestCase):
             resolved["volumes"]["translator-database-data"]["name"],
             "aelev-infrastructure-translator-database",
         )
+
+    def test_role_secret_mounts_are_minimal(self) -> None:
+        services = _resolved_compose()["services"]
+
+        def targets(role: str) -> set[str]:
+            return {
+                volume["target"]
+                for volume in services[role].get("volumes", [])
+                if isinstance(volume, dict)
+            }
+
+        self.assertEqual(
+            targets("translator-worker"),
+            {
+                "/run/aelev-translator",
+                "/run/secrets/database",
+                "/run/secrets/telemetry/client",
+            },
+        )
+        self.assertEqual(
+            targets("translator-topic-provisioner"), {"/run/secrets/kafka-admin"}
+        )
+        self.assertNotIn(
+            "/run/secrets/kafka-admin", targets("translator-normal-consumer")
+        )
+        self.assertNotIn("/run/secrets/status-admin", targets("translator-api"))
 
     def test_remote_mode_uses_the_configured_kafka_without_starting_it(self) -> None:
         resolved = _resolved_compose(REMOTE_COMPOSE_PATH)
@@ -196,7 +220,8 @@ class TranslatorConfigurationTest(unittest.TestCase):
         self.assertEqual(socket_users, {"translator-model", "translator-worker"})
         self.assertEqual(services["translator-model"]["network_mode"], "none")
         self.assertEqual(
-            set(services["translator-worker"]["networks"]), {"translator-data"}
+            set(services["translator-worker"]["networks"]),
+            {"translator-data", "translator-telemetry"},
         )
         self.assertTrue(services["translator-worker"]["volumes"][0]["read_only"])
         for role in (
@@ -205,11 +230,17 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "translator-outbox",
         ):
             self.assertEqual(
-                set(services[role]["networks"]), {"kafka", "translator-data"}
+                set(services[role]["networks"]),
+                {"kafka", "translator-data", "translator-telemetry"},
             )
         self.assertEqual(
             set(services["translator-api"]["networks"]),
-            {"kafka", "translator-data", "translator-ingress"},
+            {
+                "kafka",
+                "translator-data",
+                "translator-ingress",
+                "translator-telemetry",
+            },
         )
         for role in (
             "translator-migrator",

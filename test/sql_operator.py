@@ -44,7 +44,7 @@ def main() -> int:
     os.environ["AELEV_TRANSLATOR_DATABASE_PASSWORD_FILE"] = (
         "/run/secrets/translator-database-password"
     )
-    os.environ["AELEV_TRANSLATOR_SECRET_ROOT"] = "/run/secrets"
+    os.environ["AELEV_TRANSLATOR_DATABASE_SECRET_ROOT"] = "/run/secrets"
     admin_url = database_url()
     assert isinstance(admin_url, URL)
     admin = create_engine(admin_url, isolation_level="AUTOCOMMIT", hide_parameters=True)

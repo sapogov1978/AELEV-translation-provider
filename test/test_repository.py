@@ -202,6 +202,39 @@ def test_unfinished_v2_request_can_continue_with_updated_execution(
     )
 
 
+def test_segment_checkpoints_resume_and_are_fenced_by_execution(
+    repo: Repository,
+) -> None:
+    event = json.loads(opaque_request())
+    event["data"]["text"] = "first\nsecond"
+    event["data"]["source_digest"] = digest(b"first\nsecond")
+    raw = json.dumps(event).encode()
+    repo.execution_ref = "owner-execution-a"
+    repo.accept(raw)
+    first = repo.lease()
+    assert first is not None
+    segments = ("first", "second")
+    assert repo.prepare_segments(first, segments, "owner-execution-a") == {}
+    assert repo.complete_segment(first, 0, "erste", ["UNVERIFIED"])
+    with repo.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE translation_job SET lease_until=now()-interval '1 second'")
+        )
+    resumed = repo.lease()
+    assert resumed is not None
+    assert repo.prepare_segments(resumed, segments, "owner-execution-a") == {
+        0: ("erste", ["UNVERIFIED"])
+    }
+    with repo.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE translation_job SET lease_until=now()-interval '1 second'")
+        )
+    repo.execution_ref = "owner-execution-b"
+    changed = repo.lease()
+    assert changed is not None
+    assert repo.prepare_segments(changed, segments, "owner-execution-b") == {}
+
+
 def test_request_contract_and_digest_are_checked() -> None:
     raw = request()
     assert parse(raw, "TranslationRequested")["data"]["text"] == "central bank"

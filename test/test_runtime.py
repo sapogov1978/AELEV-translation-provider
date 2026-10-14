@@ -3,13 +3,48 @@
 import json
 import sys
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.exc import OperationalError
 
 from translator_service import presence, runtime, topic_provisioner
+from translator_service.repository import Repository
+
+
+def test_production_repository_requires_verify_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AELEV_ENVIRONMENT", "production")
+    monkeypatch.setattr(runtime, "database_sslmode", lambda: "verify-ca")
+    with pytest.raises(RuntimeError, match="TRANSLATOR_DATABASE_TLS_REQUIRED"):
+        runtime.repository()
+
+
+@pytest.mark.parametrize(
+    "environment,sslmode", [("local", "disable"), ("production", "verify-full")]
+)
+def test_repository_accepts_only_supported_environment_transport(
+    monkeypatch: pytest.MonkeyPatch, environment: str, sslmode: str
+) -> None:
+    sentinel = object()
+    monkeypatch.setenv("AELEV_ENVIRONMENT", environment)
+    monkeypatch.setenv("AELEV_TRANSLATOR_LOCK_PATH", "/test/translator.lock.json")
+    monkeypatch.setattr(runtime, "database_sslmode", lambda: sslmode)
+    monkeypatch.setattr(runtime, "database_url", lambda: "postgresql://test")
+
+    def fake_lock(_path: object) -> tuple[str, dict[str, object]]:
+        return "execution-ref", {}
+
+    def fake_repository(url: object, *, execution_ref: str | None) -> object | None:
+        if (url, execution_ref) == ("postgresql://test", "execution-ref"):
+            return sentinel
+        return None
+
+    monkeypatch.setattr(runtime, "read_translator_lock", fake_lock)
+    monkeypatch.setattr(runtime, "Repository", fake_repository)
+    assert runtime.repository() is sentinel
 
 
 @pytest.mark.parametrize("version", ["1.0.0", "2.0.0"])
@@ -32,6 +67,63 @@ def test_execution_duration_measures_only_compute_and_preserves_v1(
     assert ("execution_duration_ms" in response) == (version == "2.0.0")
     if version == "2.0.0":
         assert response["execution_duration_ms"] == 1250
+
+
+def test_long_translation_resumes_durable_segments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Repo:
+        completed: list[tuple[int, str]] = []
+
+        def prepare_segments(
+            self,
+            lease: dict[str, Any],
+            segments: tuple[str, ...],
+            execution_ref: str,
+        ) -> dict[int, tuple[str, list[str]]]:
+            assert lease["token"] == "lease"
+            assert segments == ("first", "second")
+            assert execution_ref == "owner-only"
+            return {0: ("erste", ["MACHINE_TRANSLATION_UNVERIFIED"])}
+
+        def complete_segment(
+            self,
+            lease: dict[str, Any],
+            index: int,
+            translated_text: str,
+            warnings: list[str],
+        ) -> bool:
+            del lease, warnings
+            self.completed.append((index, translated_text))
+            return True
+
+    compute = Mock(
+        return_value={
+            "status": "SUCCEEDED",
+            "translated_text": "zweite",
+            "warnings": ["MACHINE_TRANSLATION_UNVERIFIED"],
+            "error_code": "",
+        }
+    )
+    monkeypatch.setattr(runtime, "compute", compute)
+    response, _ = runtime.execute_translation(
+        {
+            "payload": json.dumps(
+                {
+                    "data": {
+                        "schema_version": "2.0.0",
+                        "text": "first\nsecond",
+                    }
+                }
+            ).encode(),
+            "execution_ref": "owner-only",
+            "token": "lease",
+        },
+        cast(Repository, Repo()),
+    )
+    assert response["translated_text"] == "erste\nzweite"
+    assert response["warnings"] == ["MACHINE_TRANSLATION_UNVERIFIED"]
+    compute.assert_called_once()
 
 
 def test_topic_retention_is_declared_by_translator_not_broker(
@@ -123,6 +215,8 @@ def test_database_outage_never_commits_or_polls_next_message(
         "AELEV_TRANSLATOR_REQUEST_TOPIC", "translation.requests.priority.v1"
     )
     monkeypatch.setenv("AELEV_TRANSLATOR_REQUEST_PRIORITY", "0")
+    monkeypatch.setenv("AELEV_ENVIRONMENT", "local")
+    monkeypatch.setenv("AELEV_TRANSLATOR_OTLP_HTTP_ENDPOINT", "")
     monkeypatch.setattr(sys, "argv", ["test", "consumer"])
     with pytest.raises(RuntimeError, match="STORAGE_UNAVAILABLE"):
         runtime.main()
