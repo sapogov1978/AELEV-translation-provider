@@ -35,7 +35,7 @@ def main() -> None:
         timeout=2.0,
         trust_env=False,
     ) as client:
-        response = client.get("/healthz")
+        response = client.get("/runtimez")
     response.raise_for_status()
     payload = response.json()
     if payload != {"status": "ok", "translator_ref": translator_ref}:

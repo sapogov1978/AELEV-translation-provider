@@ -546,6 +546,10 @@ def create_app(engine: TranslationEngine) -> FastAPI:
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/runtimez")
+    def runtimez() -> dict[str, str]:
         if not engine.runtime_ready:
             raise HTTPException(status_code=503, detail="translator runtime stopped")
         return {"status": "ok", "translator_ref": engine.translator_ref}

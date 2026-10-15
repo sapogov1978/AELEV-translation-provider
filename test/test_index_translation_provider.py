@@ -437,7 +437,8 @@ def test_partial_native_revision_does_not_satisfy_full_pin(
 def test_private_boundary_and_version_check(engine: provider.TranslationEngine) -> None:
     with TestClient(provider.create_app(engine)) as connection:
         client = cast(Any, connection)
-        assert client.get("/healthz").json()["translator_ref"] == engine.translator_ref
+        assert client.get("/healthz").json() == {"status": "ok"}
+        assert client.get("/runtimez").json()["translator_ref"] == engine.translator_ref
         assert client.get("/docs").status_code == 404
         payload = {
             "schema_version": "1.0.0",
