@@ -1,3 +1,4 @@
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_RUNTIME_SEED_IMAGE=scratch
 FROM python:3.13.7-slim-bookworm AS python-bookworm
 
 # Keep the accepted Python 3.13 / Debian 12 stack while applying the security
@@ -50,11 +51,30 @@ COPY typings ./typings
 COPY contracts ./contracts
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
+COPY deployment ./deployment
 COPY translator.lock.json ./translator.lock.json
 COPY Dockerfile ./Dockerfile
 COPY download-model.py ./download-model.py
 COPY --from=swagger-assets /assets ./swagger-assets
 CMD ["poetry", "run", "pytest", "-q"]
+
+FROM python-bookworm AS status-runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/opt/aelev/src \
+    VIRTUAL_ENV=/opt/aelev/.venv PATH=/opt/aelev/.venv/bin:$PATH \
+    AELEV_TRANSLATOR_LOCK_PATH=/opt/aelev/translator.lock.json
+RUN groupadd --system --gid 10001 aelev \
+    && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
+    && install -d --owner=10001 --group=10001 /var/lib/aelev-status
+WORKDIR /opt/aelev
+COPY --from=dependencies /opt/aelev/.venv ./.venv
+COPY --from=dependencies /opt/aelev/.venv/lib/python3.13/site-packages/aelev_platform_ui_client/health.py ./publisher-health.py
+COPY src ./src
+COPY contracts ./contracts
+COPY translator.lock.json ./translator.lock.json
+USER 10001:10001
+RUN python -c 'import os; from pathlib import Path; from translator_service.index_translation_provider import read_translator_lock; read_translator_lock(Path(os.environ["AELEV_TRANSLATOR_LOCK_PATH"]))'
+ENTRYPOINT ["python", "-m", "translator_service.status_publisher"]
+CMD ["run"]
 
 FROM python-bookworm AS index-runtime-builder
 RUN apt-get update \
@@ -93,6 +113,25 @@ COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN python -m pip uninstall --yes pip \
     && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
 COPY --from=index-runtime-builder /source/build/bin/ /opt/llama/
+
+# Maintenance target: reuse only this owner's digest-pinned approved runtime.
+# The default fresh-build target below never depends on a prior release.
+FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_RUNTIME_SEED_IMAGE} AS translator-runtime-update
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_RUNTIME_SEED_IMAGE
+USER 0:0
+WORKDIR /opt/aelev
+RUN python -c 'import os,re; assert re.fullmatch(r".+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_RUNTIME_SEED_IMAGE"]), "PINNED_RUNTIME_SEED_REQUIRED"'
+RUN python -c 'import shutil; from pathlib import Path; root=Path("/opt/aelev"); [shutil.rmtree(root/name) for name in (".venv", "src", "contracts", "alembic", "swagger-assets") if (root/name).exists()]'
+COPY --from=dependencies /opt/aelev/.venv ./.venv
+COPY translator.lock.json ./translator.lock.json
+COPY --from=swagger-assets /assets ./swagger-assets
+COPY src ./src
+COPY contracts ./contracts
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
+RUN python -m translator_service.index_translation_provider verify-model
+USER 10001:10001
+CMD ["python", "-m", "translator_service.index_translation_provider", "serve"]
 
 FROM translator-base AS translator-runtime
 COPY --from=index-model-assets --chown=10001:10001 --chmod=644 /model/Index-Translate-9B.Q4_K_M.gguf /opt/aelev/model/Index-Translate-9B.Q4_K_M.gguf

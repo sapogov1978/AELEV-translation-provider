@@ -9,6 +9,9 @@
 | Текущие задачи и допуск площадки | [TASKS.md](TASKS.md) |
 | История изменений | [CHANGELOG.md](CHANGELOG.md) |
 | Backend и миграции | `src/translator_service/`, `alembic/` |
+| Согласованное обновление и сверка сохранности | [процедура](USER_MANUAL.md#согласованное-обновление-схемы), `deployment/check_state.py` |
+| Проверенная выкладка схемы 0005 на стенд | [результат 18 октября](test/schema-0005-rollout-result-20261018.md) |
+| Порядок технических повторов и диагностика | [результат проверки и выкладки](test/stable-retry-result-20261018.md) |
 | Телеметрия владельца | `src/translator_service/observability.py`, `observability/` |
 | Локальная и удалённая топологии | `compose.local.yml`, `compose.remote.yml`, `compose.yml` |
 | Закреплённая модель | `translator.lock.json`, `download-model.py` |

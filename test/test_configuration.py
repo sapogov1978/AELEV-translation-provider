@@ -26,6 +26,8 @@ ROLES = {
     "translator-priority-consumer",
     "translator-topic-provisioner",
 }
+
+
 def _clean_environment() -> dict[str, str]:
     environment = {
         key: value
@@ -61,6 +63,21 @@ def _resolved_compose(path: Path = COMPOSE_PATH) -> dict[str, Any]:
 
 @unittest.skipUnless(shutil.which("docker"), "Docker CLI is required")
 class TranslatorConfigurationTest(unittest.TestCase):
+    def test_light_status_image_contains_required_lock_metadata(self) -> None:
+        stage = (
+            (COMPONENT_ROOT / "Dockerfile")
+            .read_text()
+            .split("FROM python-bookworm AS status-runtime", 1)[1]
+            .split("FROM python-bookworm AS index-runtime-builder", 1)[0]
+        )
+        self.assertIn(
+            "AELEV_TRANSLATOR_LOCK_PATH=/opt/aelev/translator.lock.json", stage
+        )
+        self.assertIn("COPY translator.lock.json", stage)
+        self.assertIn("read_translator_lock", stage)
+        self.assertNotIn("index-model-assets", stage)
+        self.assertNotIn("COPY --from=index-runtime-builder", stage)
+
     def test_operator_entrypoints_are_owned_by_the_component(self) -> None:
         self.assertEqual(
             {path.name for path in COMPONENT_ROOT.glob("compose*.yml")},
@@ -135,6 +152,16 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "/run/secrets/kafka-admin", targets("translator-normal-consumer")
         )
         self.assertNotIn("/run/secrets/status-admin", targets("translator-api"))
+        for role in (
+            "translator-migrator",
+            "translator-topic-provisioner",
+            "translator-priority-consumer",
+            "translator-normal-consumer",
+            "translator-worker",
+            "translator-outbox",
+            "translator-api",
+        ):
+            self.assertEqual(services[role]["group_add"], ["20"])
 
     def test_remote_mode_uses_the_configured_kafka_without_starting_it(self) -> None:
         resolved = _resolved_compose(REMOTE_COMPOSE_PATH)

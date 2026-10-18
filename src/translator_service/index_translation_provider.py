@@ -30,6 +30,7 @@ from translator_service.protocol import (
     parse_evidence_translation_request,
     parse_profile_localization_request,
 )
+from translator_service.retry import retry_code
 
 _MODEL_FILE = "Index-Translate-9B.Q4_K_M.gguf"
 _NATIVE_ORIGIN = "http://127.0.0.1:8080"
@@ -587,9 +588,7 @@ def create_app(engine: TranslationEngine) -> FastAPI:
         except (TranslatorConfigurationError, TranslatorRuntimeRequestError) as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
         except (TimeoutError, RuntimeError) as error:
-            raise HTTPException(
-                status_code=503, detail="TRANSLATOR_UNAVAILABLE"
-            ) from error
+            raise HTTPException(status_code=503, detail=retry_code(error)) from error
 
     @app.post("/v1/localize-profile")
     def localize(payload: Annotated[object, Body()]) -> dict[str, object]:

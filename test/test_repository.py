@@ -65,7 +65,10 @@ def repo() -> Iterator[Repository]:
         connection.execute(text("TRUNCATE translation_job CASCADE"))
         connection.execute(text("TRUNCATE translation_control_command"))
         connection.execute(
-            text("UPDATE translation_control SET revision=1, desired_state='RUNNING'")
+            text(
+                "UPDATE translation_control SET revision=1, desired_state='RUNNING',"
+                "priority_streak=0"
+            )
         )
     yield repo
     repo.engine.dispose()
@@ -305,23 +308,98 @@ def test_operator_result_requires_exact_request_and_outbox_ack(
     assert repo.delivered_result(identity, digest(b"foreign")) is None
 
 
-def test_slow_retry_does_not_starve_older_waiting_work(repo: Repository) -> None:
+def test_retry_cooldown_does_not_block_ready_work(repo: Repository) -> None:
     first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
     repo.accept(request(identity=first_id))
     first = repo.lease()
     assert first is not None
     repo.retry(first)
     repo.accept(request(identity=second_id, value="monetary policy"))
+    second = repo.lease()
+    assert second is not None and second["request_id"] == second_id
+    assert repo.lease() is None
+
+
+@pytest.mark.parametrize("priority", [0, 100])
+def test_eligible_retry_retains_original_age_and_bytes(
+    repo: Repository, priority: int
+) -> None:
+    first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
+    raw = request(identity=first_id)
+    repo.accept(raw, priority=priority)
+    first = repo.lease()
+    assert first is not None
+    with repo.engine.connect() as connection:
+        created_at = connection.execute(
+            text("SELECT created_at FROM translation_job WHERE request_id=:id"),
+            {"id": first_id},
+        ).scalar_one()
+    repo.accept(request(identity=second_id), priority=priority)
+    for _ in range(2):
+        repo.retry(first, "TRANSLATOR_DEADLINE_EXCEEDED")
+        with repo.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE translation_job SET available_at=clock_timestamp() "
+                    "WHERE request_id=:id"
+                ),
+                {"id": first_id},
+            )
+        first = repo.lease()
+        assert first is not None and first["request_id"] == first_id
+        assert bytes(first["payload"]) == raw
+    with repo.engine.connect() as connection:
+        saved = connection.execute(
+            text(
+                "SELECT created_at,error_code,attempt_count FROM translation_job "
+                "WHERE request_id=:id"
+            ),
+            {"id": first_id},
+        ).one()
+    assert saved.created_at == created_at
+    assert saved.error_code == "TRANSLATOR_DEADLINE_EXCEEDED"
+    assert saved.attempt_count == 3
+
+
+def test_expired_lease_retains_age_and_fences_previous_attempt(
+    repo: Repository,
+) -> None:
+    first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
+    repo.accept(request(identity=first_id))
+    previous = repo.lease()
+    assert previous is not None
+    repo.accept(request(identity=second_id))
     with repo.engine.begin() as connection:
         connection.execute(
             text(
-                "UPDATE translation_job SET available_at=clock_timestamp() "
+                "UPDATE translation_job SET lease_until=now()-interval '1 second',"
+                "available_at=now()+interval '1 day' "
                 "WHERE request_id=:id"
             ),
             {"id": first_id},
         )
-    second = repo.lease()
-    assert second is not None and second["request_id"] == second_id
+    current = repo.lease()
+    assert current is not None and current["request_id"] == first_id
+    assert current["token"] != previous["token"]
+    assert not repo.complete(previous, success())
+
+
+def test_equal_age_is_ordered_by_request_id_not_retry_availability(
+    repo: Repository,
+) -> None:
+    low, high = sorted((str(uuid.uuid4()), str(uuid.uuid4())))
+    repo.accept(request(identity=high))
+    repo.accept(request(identity=low))
+    with repo.engine.begin() as connection:
+        connection.execute(
+            text("UPDATE translation_job SET created_at=now()-interval '1 day'")
+        )
+        connection.execute(
+            text("UPDATE translation_job SET available_at=now() WHERE request_id=:id"),
+            {"id": low},
+        )
+    first = repo.lease()
+    assert first is not None and first["request_id"] == low
 
 
 def test_priority_burst_always_releases_normal_work(repo: Repository) -> None:

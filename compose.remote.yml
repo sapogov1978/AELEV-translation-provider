@@ -76,6 +76,7 @@ x-telemetry-identity: &telemetry-identity
 
 x-role: &role
   <<: *image
+  group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_GID:?set runtime secret group in the translator-service .env file}"]
   restart: unless-stopped
   read_only: true
   tmpfs: ["/tmp:size=64m,mode=1777"]
@@ -139,6 +140,10 @@ services:
 
   translator-service-status-publisher:
     <<: *image
+    image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_IMAGE:?set publisher image in the translator-service .env file}
+    build:
+      context: ${AELEV_INFRASTRUCTURE_TRANSLATOR_BUILD_CONTEXT:?set in the translator-service .env file}
+      target: status-runtime
     profiles: [ui]
     entrypoint: ["python", "-m", "translator_service.status_publisher"]
     command: [run]
@@ -164,7 +169,7 @@ services:
       - *kafka-identity
     networks: [translator-data, kafka, translator-ingress]
     healthcheck:
-      test: ["CMD", "python", "-m", "translator_service.status_publisher" , "health"]
+      test: [CMD, python, -S, /opt/aelev/publisher-health.py, AELEV_INFRASTRUCTURE_TRANSLATOR_]
       interval: 30s
       timeout: 5s
       retries: 3

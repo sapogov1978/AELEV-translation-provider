@@ -35,9 +35,7 @@ def database_url() -> str | URL:
         "sslcert": "AELEV_TRANSLATOR_DATABASE_CLIENT_CERT_FILE",
         "sslkey": "AELEV_TRANSLATOR_DATABASE_CLIENT_KEY_FILE",
     }.items():
-        value = _secret_path(
-            environment_name, "AELEV_TRANSLATOR_DATABASE_SECRET_ROOT"
-        )
+        value = _secret_path(environment_name, "AELEV_TRANSLATOR_DATABASE_SECRET_ROOT")
         if value:
             query[key] = value
     return URL.create(

@@ -29,9 +29,7 @@ def event_name(raw: bytes, base: str) -> str:
     document = cast(dict[str, Any], value)
     if not isinstance(document.get("data"), dict):
         raise ValueError("TRANSLATION_EVENT_INVALID")
-    return (
-        base + "V2" if document["data"].get("schema_version") == "2.0.0" else base
-    )
+    return base + "V2" if document["data"].get("schema_version") == "2.0.0" else base
 
 
 def digest(raw: bytes) -> str:

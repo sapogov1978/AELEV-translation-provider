@@ -273,10 +273,7 @@ def main() -> int:
         )
         identity = send("normal", "The central bank did not raise the interest rate.")
         normal = wait_result(identity)
-        assert (
-            normal["priority"] == 100
-            and "translator_ref" not in normal["result"]
-        )
+        assert normal["priority"] == 100 and "translator_ref" not in normal["result"]
         assert "Deutschland" not in normal["result"]["translated_text"]
         results.append(normal)
         check("Обычная очередь: полный путь Kafka → БД → 9B → outbox ACK")

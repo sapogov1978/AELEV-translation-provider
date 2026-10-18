@@ -95,7 +95,7 @@ class Repository:
                 ORDER BY
                   CASE WHEN :prefer_normal AND priority=100 THEN 0
                        WHEN NOT :prefer_normal AND priority=0 THEN 0 ELSE 1 END,
-                  priority,available_at,created_at,request_id
+                  priority,created_at,request_id
                 FOR UPDATE SKIP LOCKED LIMIT 1"""),
                     {"prefer_normal": prefer_normal},
                 )

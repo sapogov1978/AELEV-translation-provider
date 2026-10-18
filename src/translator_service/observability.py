@@ -51,9 +51,7 @@ def configure(role: str) -> TracerProvider | None:
     if not endpoint.startswith("https://"):
         raise RuntimeError("TRANSLATOR_TELEMETRY_HTTPS_REQUIRED")
     ca = _credential(os.environ["AELEV_TRANSLATOR_TELEMETRY_CA_FILE"])
-    certificate = _credential(
-        os.environ["AELEV_TRANSLATOR_TELEMETRY_CLIENT_CERT_FILE"]
-    )
+    certificate = _credential(os.environ["AELEV_TRANSLATOR_TELEMETRY_CLIENT_CERT_FILE"])
     key = _credential(os.environ["AELEV_TRANSLATOR_TELEMETRY_CLIENT_KEY_FILE"])
     if stat.S_IMODE(Path(key).stat().st_mode) & 0o007:
         raise RuntimeError("TRANSLATOR_TELEMETRY_PRIVATE_KEY_EXPOSED")

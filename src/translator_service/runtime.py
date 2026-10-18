@@ -22,6 +22,7 @@ from translator_service.contracts import RESULT_TOPIC, RESULT_TOPIC_V2, digest
 from translator_service.environment import database_sslmode, database_url
 from translator_service.index_translation_provider import read_translator_lock
 from translator_service.repository import Repository
+from translator_service.retry import retry_code
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class JsonFormatter(logging.Formatter):
             "outcome",
             "actor_digest",
             "queue",
+            "error_code",
         ):
             if hasattr(record, key):
                 fields[key] = getattr(record, key)
@@ -73,9 +75,10 @@ def kafka_configuration() -> dict[str, Any]:
 
 
 def repository() -> Repository:
-    if os.environ.get(
-        "AELEV_ENVIRONMENT", "production"
-    ) != "local" and database_sslmode() != "verify-full":
+    if (
+        os.environ.get("AELEV_ENVIRONMENT", "production") != "local"
+        and database_sslmode() != "verify-full"
+    ):
         raise RuntimeError("TRANSLATOR_DATABASE_TLS_REQUIRED")
     execution_ref, _ = read_translator_lock(
         Path(os.environ["AELEV_TRANSLATOR_LOCK_PATH"])
@@ -159,6 +162,26 @@ def compute(data: dict[str, Any], execution_ref: str | None = None) -> dict[str,
         "warnings": result.get("warnings", []),
         "error_code": "",
     }
+
+
+def retry_translation(
+    repo: Repository,
+    lease: dict[str, Any],
+    envelope: dict[str, Any],
+    error: Exception,
+) -> None:
+    """Retain the job and record only a bounded cause and correlation."""
+    code = retry_code(error)
+    repo.retry(lease, code)
+    LOGGER.warning(
+        "translation_model_retry",
+        extra={
+            "request_id": lease["request_id"],
+            "correlationid": envelope["correlationid"],
+            "traceparent": envelope["traceparent"],
+            "error_code": code,
+        },
+    )
 
 
 def _translation_segments(text: str) -> tuple[str, ...]:
@@ -402,9 +425,14 @@ def main() -> None:
                                     "duration_ms": duration_ms,
                                 },
                             )
-                    except (httpx.HTTPError, RuntimeError, ValueError, ValidationError):
-                        repo.retry(lease)
-                        LOGGER.warning("translation_model_retry")
+                    except (
+                        httpx.HTTPError,
+                        TimeoutError,
+                        RuntimeError,
+                        ValueError,
+                        ValidationError,
+                    ) as error:
+                        retry_translation(repo, lease, envelope, error)
             except SQLAlchemyError:
                 if args.role == "consumer":
                     # Do not poll past an unpersisted record: restart from the
