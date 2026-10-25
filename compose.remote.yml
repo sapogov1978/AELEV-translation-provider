@@ -77,12 +77,23 @@ x-telemetry-identity: &telemetry-identity
 x-role: &role
   <<: *image
   group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_SECRET_GID:?set runtime secret group in the translator-service .env file}"]
-  restart: unless-stopped
+  restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}
   read_only: true
   tmpfs: ["/tmp:size=64m,mode=1777"]
   security_opt: [no-new-privileges:true]
   mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_MEMORY_LIMIT in the translator-service .env file}
   cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_ROLE_CPUS in the translator-service .env file}
+
+x-background-health: &background-health
+  test: [CMD, python, -S, /opt/aelev/src/translator_service/local_health.py]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+
+x-background-role: &background-role
+  <<: *role
+  image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_BACKGROUND_IMAGE:-${AELEV_INFRASTRUCTURE_TRANSLATOR_IMAGE}}
+  healthcheck: *background-health
 
 x-ui-status-environment: &ui-status-environment
   <<: [*database-environment, *kafka-environment]
@@ -151,7 +162,7 @@ services:
     user: "10001:10001"
     group_add: ["${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_SECRET_GID:?set in the translator-service .env file}"]
     environment: *ui-status-environment
-    restart: unless-stopped
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_RESTART_POLICY:-on-failure:3}
     read_only: true
     tmpfs: ["/tmp:size=8m,mode=1777"]
     cap_drop: [ALL]
@@ -204,7 +215,7 @@ services:
   translator-database:
     image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_IMAGE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_IMAGE in the translator-service .env file}
     profiles: [bundled-database]
-    restart: unless-stopped
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}
     environment:
       POSTGRES_DB: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_NAME in the translator-service .env file}
       POSTGRES_USER: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_USER in the translator-service .env file}
@@ -245,17 +256,18 @@ services:
       AELEV_KAFKA_CLIENT_KEY_FILE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_KEY_FILE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_KAFKA_ADMIN_CLIENT_KEY_FILE; use NONE for local PLAINTEXT}
       AELEV_TRANSLATOR_KAFKA_SECRET_ROOT: /run/secrets/kafka-admin
     volumes: [*kafka-admin-identity]
-    restart: on-failure
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_PROVISIONER_RESTART_POLICY:-on-failure:3}
     networks: [kafka]
 
   translator-model:
     <<: *image
     command: ["python", "-m", "translator_service.index_translation_provider", "serve"]
-    restart: unless-stopped
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]
     security_opt: [no-new-privileges:true]
     environment:
+      AELEV_TRANSLATOR_HEALTH_ROLE: model
       AELEV_TRANSLATOR_BATCH_SIZE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS in the translator-service .env file}
       AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS in the translator-service .env file}
@@ -264,19 +276,20 @@ services:
     mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT in the translator-service .env file}
     cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS in the translator-service .env file}
     healthcheck:
-      test: ["CMD", "python", "-m", "translator_service.translator_healthcheck"]
+      test: ["CMD", "python", "-S", "/opt/aelev/src/translator_service/local_health.py"]
       interval: 10s
       timeout: 5s
       retries: 30
 
   translator-priority-consumer:
-    <<: *role
+    <<: *background-role
     command: ["python", "-m", "translator_service.runtime", "consumer"]
     environment:
       <<: [*database-environment, *kafka-environment]
       AELEV_TRANSLATOR_KAFKA_GROUP: ${AELEV_INFRASTRUCTURE_TRANSLATOR_PRIORITY_KAFKA_GROUP:?set AELEV_INFRASTRUCTURE_TRANSLATOR_PRIORITY_KAFKA_GROUP in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TOPIC: translation.requests.priority.v1
       AELEV_TRANSLATOR_REQUEST_PRIORITY: "0"
+      AELEV_TRANSLATOR_HEALTH_ROLE: consumer
     volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
@@ -284,13 +297,14 @@ services:
     networks: [translator-data, kafka, translator-telemetry]
 
   translator-normal-consumer:
-    <<: *role
+    <<: *background-role
     command: ["python", "-m", "translator_service.runtime", "consumer"]
     environment:
       <<: [*database-environment, *kafka-environment]
       AELEV_TRANSLATOR_KAFKA_GROUP: ${AELEV_INFRASTRUCTURE_TRANSLATOR_NORMAL_KAFKA_GROUP:?set AELEV_INFRASTRUCTURE_TRANSLATOR_NORMAL_KAFKA_GROUP in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TOPIC: translation.requests.v1
       AELEV_TRANSLATOR_REQUEST_PRIORITY: "100"
+      AELEV_TRANSLATOR_HEALTH_ROLE: consumer
     volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
@@ -298,11 +312,12 @@ services:
     networks: [translator-data, kafka, translator-telemetry]
 
   translator-worker:
-    <<: *role
+    <<: *background-role
     command: ["python", "-m", "translator_service.runtime", "worker"]
     environment:
       <<: *database-environment
       AELEV_TRANSLATOR_SOCKET_PATH: /run/aelev-translator/translator.sock
+      AELEV_TRANSLATOR_HEALTH_ROLE: worker
       AELEV_TRANSLATOR_HIGH_PRIORITY_BURST: ${AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST:?set AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST in the translator-service .env file}
     volumes:
       - translator-model-socket:/run/aelev-translator:ro
@@ -315,10 +330,11 @@ services:
     networks: [translator-data, translator-telemetry]
 
   translator-outbox:
-    <<: *role
+    <<: *background-role
     command: ["python", "-m", "translator_service.runtime", "outbox"]
     environment:
       <<: [*database-environment, *kafka-environment]
+      AELEV_TRANSLATOR_HEALTH_ROLE: outbox
     volumes: [*database-identity, *kafka-identity, *telemetry-identity]
     depends_on:
       translator-migrator: {condition: service_completed_successfully}
@@ -330,6 +346,7 @@ services:
     command: ["python", "-m", "translator_service.api_server"]
     environment:
       <<: [*database-environment, *kafka-environment, *operator-environment]
+      AELEV_TRANSLATOR_HEALTH_ROLE: api
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS:?set in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS:?set loopback in the translator-service .env file}
       AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set in the translator-service .env file}
@@ -354,11 +371,7 @@ services:
       - "${AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_BIND_ADDRESS}:${AELEV_INFRASTRUCTURE_TRANSLATOR_API_PORT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_PORT}:${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT}"
       - "${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_BIND_ADDRESS:?set in the translator-service .env file}:${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_PORT:?set in the translator-service .env file}:${AELEV_INFRASTRUCTURE_TRANSLATOR_API_HTTPS_CONTAINER_PORT:?set in the translator-service .env file}"
     healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_API_CONTAINER_PORT}/readyz', timeout=3)"
+      test: ["CMD", "python", "-S", "/opt/aelev/src/translator_service/local_health.py"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -374,7 +387,8 @@ services:
     tmpfs: ["/tmp:size=16m,mode=1777"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    restart: unless-stopped
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_RESTART_POLICY:-on-failure:3}
+    stop_grace_period: 1m
     mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_MEMORY_LIMIT:?set in the translator-service .env file}
     extra_hosts: ["delivery:host-gateway"]
     volumes:
@@ -392,15 +406,16 @@ services:
     networks: [translator-telemetry, translator-telemetry-egress]
     depends_on:
       translator-api: {condition: service_healthy}
+      translator-telemetry-data-init: {condition: service_completed_successfully}
     healthcheck:
-      test: [CMD, python, /opt/aelev/delivery.py, health, --config, /etc/aelev/sender.local.json]
+      test: [CMD, python, -S, /opt/aelev/delivery_health.py]
       interval: 10s
-      timeout: 15s
+      timeout: 5s
       retries: 6
 
   translator-telemetry-data-init:
     image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SENDER_IMAGE:?set in the translator-service .env file}
-    profiles: [provision]
+    profiles: [provision, telemetry]
     network_mode: none
     user: "0:0"
     entrypoint: [python, -c]
@@ -435,3 +450,6 @@ networks:
     internal: true
   translator-telemetry-egress:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_EGRESS_NETWORK:?set in the translator-service .env file}
+    ipam:
+      config:
+        - subnet: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_EGRESS_SUBNET:?set a non-overlapping sender egress subnet}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import os
@@ -22,6 +23,7 @@ import httpx
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 
+from translator_service import health_heartbeat
 from translator_service.index_languages import language_name
 from translator_service.protocol import (
     EvidenceTranslationRequest,
@@ -207,6 +209,11 @@ class TranslationEngine:
             and self._process is not None
             and self._process.poll() is None
         )
+
+    @property
+    def runtime_pid(self) -> int | None:
+        process = self._process
+        return process.pid if process is not None and self.runtime_ready else None
 
     def _start_runtime(self, timeout_seconds: float | None = None) -> None:
         self._runtime_loaded = False
@@ -497,9 +504,13 @@ class TranslationEngine:
         )
         translated, warnings = self.translate_text(bounded)
         return translated, (
-            *warnings,
-            "REPRESENTATIVE_EXCERPT_TRANSLATED",
-        ) if excerpted else warnings
+            (
+                *warnings,
+                "REPRESENTATIVE_EXCERPT_TRANSLATED",
+            )
+            if excerpted
+            else warnings
+        )
 
 
 def _evidence_segments(text: str) -> tuple[str, ...]:
@@ -525,17 +536,36 @@ def _operator_translation_evidence(text: str) -> tuple[str, bool]:
     if len(text) <= 768:
         return text, False
     middle = max(0, len(text) // 2 - 128)
-    return " … ".join(
-        (text[:256].strip(), text[middle : middle + 256].strip(), text[-256:].strip())
-    ), True
+    return (
+        " … ".join(
+            (
+                text[:256].strip(),
+                text[middle : middle + 256].strip(),
+                text[-256:].strip(),
+            )
+        ),
+        True,
+    )
 
 
 def create_app(engine: TranslationEngine) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+        heartbeat = (
+            asyncio.create_task(
+                health_heartbeat.run(
+                    "model", lambda: engine.runtime_ready, lambda: engine.runtime_pid
+                )
+            )
+            if health_heartbeat.enabled("model")
+            else None
+        )
         try:
             yield
         finally:
+            if heartbeat is not None:
+                heartbeat.cancel()
+                await asyncio.gather(heartbeat, return_exceptions=True)
             engine.close()
 
     app = FastAPI(
@@ -546,11 +576,11 @@ def create_app(engine: TranslationEngine) -> FastAPI:
     )
 
     @app.get("/healthz")
-    def healthz() -> dict[str, str]:
+    async def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/runtimez")
-    def runtimez() -> dict[str, str]:
+    async def runtimez() -> dict[str, str]:
         if not engine.runtime_ready:
             raise HTTPException(status_code=503, detail="translator runtime stopped")
         return {"status": "ok", "translator_ref": engine.translator_ref}

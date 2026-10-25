@@ -1,9 +1,24 @@
 """Operational readiness includes the mandatory Kafka dependency."""
 
+from typing import cast
+
+import httpx
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from translator_service import api
+
+
+def test_liveness_ignores_unavailable_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable() -> None:
+        raise RuntimeError("dependency unavailable")
+
+    monkeypatch.setattr(api, "verify_kafka", unavailable)
+    with TestClient(api.app) as client:
+        assert cast(httpx.Client, client).get("/healthz").json() == {"status": "ok"}
 
 
 def test_ready_requires_database_and_kafka(monkeypatch: pytest.MonkeyPatch) -> None:

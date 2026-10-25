@@ -14,7 +14,7 @@
   "ca": "/run/secrets/telemetry/sender/central-ca.crt",
   "client_cert": "/run/secrets/telemetry/sender/central-write.crt",
   "client_key": "/run/secrets/telemetry/sender/central-write.key",
-  "health_ca": "/run/secrets/telemetry/sender/local-query-ca.crt",
+  "health_ca": "/run/secrets/telemetry/sender/health-ca.crt",
   "health_cert": "/run/secrets/telemetry/sender/local-query.crt",
   "health_key": "/run/secrets/telemetry/sender/local-query.key",
   "destinations": {

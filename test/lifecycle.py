@@ -606,9 +606,11 @@ def write_readable_report(report: dict[str, object], result_path: Path) -> None:
     phases = cast(list[dict[str, object]], report["phases"])
     suffix = " --fail-after-start" if report["mode"] == "failure_cleanup" else ""
     lines = [
-        "# Результат проверки очистки translator-service после ошибки"
-        if report["mode"] == "failure_cleanup"
-        else "# Результат проверки жизненного цикла translator-service",
+        (
+            "# Результат проверки очистки translator-service после ошибки"
+            if report["mode"] == "failure_cleanup"
+            else "# Результат проверки жизненного цикла translator-service"
+        ),
         "",
         f"- Время: `{local:%Y-%m-%d %H:%M:%S %Z}` (`Europe/Belgrade`).",
         f"- Команда: `python3 test/lifecycle.py{suffix}`.",

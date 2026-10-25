@@ -90,11 +90,9 @@ def read(engine: Engine, ttl_seconds: int) -> list[dict[str, str | None]]:
     with engine.connect() as connection:
         rows = (
             connection.execute(
-                text(
-                    """SELECT component,state,observed_at,
+                text("""SELECT component,state,observed_at,
             observed_at >= now() - make_interval(secs => :ttl) AS fresh
-            FROM translation_runtime_presence ORDER BY observed_at DESC"""
-                ),
+            FROM translation_runtime_presence ORDER BY observed_at DESC"""),
                 {"ttl": ttl_seconds},
             )
             .mappings()

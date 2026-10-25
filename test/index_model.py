@@ -244,9 +244,11 @@ def main() -> int:
         )
         digests[identity] = response["request_digest"]
         counts[
-            "translation.requests.priority.v2"
-            if queue == "priority"
-            else "translation.requests.v2"
+            (
+                "translation.requests.priority.v2"
+                if queue == "priority"
+                else "translation.requests.v2"
+            )
         ] += 1
         counts["translation.results.v2"] += 1
         return identity

@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 import uvicorn
 from aelev_platform_ui_client import https_url
 
+from translator_service import health_heartbeat
+
 PREFIX = "AELEV_INFRASTRUCTURE_TRANSLATOR_"
 
 
@@ -135,15 +137,31 @@ async def serve(servers: tuple[Server, Server]) -> None:
     for value in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(value, shutdown)
     tasks = [asyncio.create_task(server.serve()) for server in servers]
+    if health_heartbeat.enabled("api"):
+        tasks.append(
+            asyncio.create_task(
+                health_heartbeat.run(
+                    "api",
+                    lambda: all(
+                        server.started and not server.should_exit for server in servers
+                    ),
+                )
+            )
+        )
     try:
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         unexpected = not stopped
         shutdown()
+        if len(tasks) == 3:
+            tasks[-1].cancel()
+            await asyncio.gather(tasks.pop(), return_exceptions=True)
         await asyncio.gather(*tasks)
         if unexpected:
             raise RuntimeError("TRANSLATOR_API_LISTENER_STOPPED")
     finally:
         shutdown()
+        if len(tasks) == 3:
+            tasks[-1].cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         for value in (signal.SIGTERM, signal.SIGINT):
             loop.remove_signal_handler(value)

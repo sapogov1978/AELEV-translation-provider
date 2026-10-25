@@ -17,7 +17,7 @@ from jsonschema import ValidationError
 from opentelemetry.trace import SpanKind
 from sqlalchemy.exc import SQLAlchemyError
 
-from translator_service import observability
+from translator_service import health_heartbeat, observability
 from translator_service.contracts import RESULT_TOPIC, RESULT_TOPIC_V2, digest
 from translator_service.environment import database_sslmode, database_url
 from translator_service.index_translation_provider import read_translator_lock
@@ -117,7 +117,11 @@ def compute(data: dict[str, Any], execution_ref: str | None = None) -> dict[str,
         trust_env=False,
         timeout=240,
     ) as client:
-        response = client.post(route, json=payload)
+        health_heartbeat.progress("worker", "model")
+        try:
+            response = client.post(route, json=payload)
+        finally:
+            health_heartbeat.progress("worker")
     if response.status_code == 422:
         code = response.json().get("detail", "TRANSLATOR_REQUEST_INVALID")
         if v2 and code == "TRANSLATOR_VERSION_MISMATCH":
@@ -261,6 +265,7 @@ def execute_translation(
 
 def publish_once(repo: Repository, producer: Producer) -> None:
     for row in repo.pending():
+        health_heartbeat.progress("outbox")
         envelope = json.loads(row["payload"])
         failures: list[KafkaError | None] = []
 
@@ -275,9 +280,11 @@ def publish_once(repo: Repository, producer: Producer) -> None:
             "publish-result", envelope.get("traceparent", ""), kind=SpanKind.PRODUCER
         ):
             producer.produce(
-                RESULT_TOPIC_V2
-                if envelope["data"]["schema_version"] == "2.0.0"
-                else RESULT_TOPIC,
+                (
+                    RESULT_TOPIC_V2
+                    if envelope["data"]["schema_version"] == "2.0.0"
+                    else RESULT_TOPIC
+                ),
                 key=row["request_id"].encode(),
                 value=bytes(row["payload"]),
                 on_delivery=delivered,
@@ -363,8 +370,11 @@ def main() -> None:
     try:
         while not stopped.is_set():
             try:
+                health_heartbeat.progress(args.role)
                 if args.role == "consumer":
+                    health_heartbeat.progress("consumer", "kafka")
                     message = client.poll(1)
+                    health_heartbeat.progress("consumer")
                     if message is None:
                         continue
                     if message.error():
@@ -391,7 +401,9 @@ def main() -> None:
                                 raw,
                                 "TRANSLATION_CONTRACT_INVALID",
                             )
+                    health_heartbeat.progress("consumer", "kafka")
                     client.commit(message=message, asynchronous=False)
+                    health_heartbeat.progress("consumer")
                 elif args.role == "outbox":
                     publish_once(repo, client)
                     stopped.wait(1)
@@ -441,6 +453,8 @@ def main() -> None:
                 LOGGER.warning("translation_storage_retry")
                 stopped.wait(5)
     finally:
+        if health_heartbeat.enabled(args.role):
+            health_heartbeat.withdraw(args.role)
         stopped.set()
         presence_thread.join(timeout=10)
         if args.role == "consumer":

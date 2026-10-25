@@ -1,4 +1,5 @@
 ARG AELEV_INFRASTRUCTURE_TRANSLATOR_RUNTIME_SEED_IMAGE=scratch
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE=scratch
 FROM python:3.13.7-slim-bookworm AS python-bookworm
 
 # Keep the accepted Python 3.13 / Debian 12 stack while applying the security
@@ -21,6 +22,19 @@ COPY translator.lock.json download-model.py /supply/
 RUN --mount=type=cache,id=aelev-translator-index-weights,target=/var/cache/aelev-translator \
     python /supply/download-model.py --lock /supply/translator.lock.json \
     --destination /model --cache /var/cache/aelev-translator
+
+# Owner-local journals use a pinned compatible SQLite ABI, not Debian's older ABI.
+FROM python-bookworm AS sqlite-builder
+RUN apt-get update && apt-get install --yes --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+ADD --checksum=sha256:0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c https://sqlite.org/2026/sqlite-autoconf-3530400.tar.gz /sqlite.tar.gz
+RUN mkdir /sqlite-source /sqlite \
+    && tar -xzf /sqlite.tar.gz --strip-components=1 -C /sqlite-source \
+    && python -c 'import hashlib; from pathlib import Path; assert hashlib.sha3_256(Path("/sqlite-source/sqlite3.c").read_bytes()).hexdigest() == "67f423e9ebbbdc473cbc4772c872ee6b89f31fde4ed0279a5c25d5f65c043a16"' \
+    && gcc -shared -fPIC -O1 -DSQLITE_THREADSAFE=1 \
+       -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE \
+       -Wl,-soname,libsqlite3.so.0 /sqlite-source/sqlite3.c \
+       -o /sqlite/libsqlite3.so.0 -lpthread -ldl -lm
 
 FROM python-bookworm AS poetry-base
 ENV POETRY_VERSION=2.2.1 \
@@ -61,7 +75,10 @@ CMD ["poetry", "run", "pytest", "-q"]
 FROM python-bookworm AS status-runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/opt/aelev/src \
     VIRTUAL_ENV=/opt/aelev/.venv PATH=/opt/aelev/.venv/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/aelev/sqlite \
     AELEV_TRANSLATOR_LOCK_PATH=/opt/aelev/translator.lock.json
+COPY --from=sqlite-builder /sqlite /opt/aelev/sqlite
+RUN python -S -c 'import sqlite3; assert sqlite3.sqlite_version == "3.53.4"'
 RUN groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
     && install -d --owner=10001 --group=10001 /var/lib/aelev-status
@@ -104,7 +121,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     AELEV_TRANSLATOR_LOCK_PATH=/opt/aelev/translator.lock.json \
     AELEV_TRANSLATOR_SOCKET_PATH=/run/aelev-translator/translator.sock \
     AELEV_TRANSLATOR_RUNTIME_PATH=/opt/llama/llama-server \
-    LD_LIBRARY_PATH=/opt/llama
+    LD_LIBRARY_PATH=/opt/aelev/sqlite:/opt/llama
+COPY --from=sqlite-builder /sqlite /opt/aelev/sqlite
+RUN python -S -c 'import sqlite3; assert sqlite3.sqlite_version == "3.53.4"'
 RUN groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
     && install -d --owner=10001 --group=10001 /opt/aelev/model /run/aelev-translator /var/lib/aelev-status
@@ -113,6 +132,31 @@ COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN python -m pip uninstall --yes pip \
     && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
 COPY --from=index-runtime-builder /source/build/bin/ /opt/llama/
+
+# Health-only maintenance keeps the exact interpreter, dependencies and weights.
+FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE} AS translator-health-update
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE
+# A local snapshot tag is admitted only after checking its exact image ID and
+# all inherited layers before and after the build; it is not a registry digest.
+RUN python -c 'import os,re; assert re.fullmatch(r"aelev/translator-service:health-seed-sha256-[0-9a-f]{64}|.+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE"]), "PINNED_HEALTH_SEED_REQUIRED"'
+COPY src/translator_service/api.py src/translator_service/api_server.py src/translator_service/index_translation_provider.py src/translator_service/local_health.py src/translator_service/health_heartbeat.py /opt/aelev/src/translator_service/
+
+# Maintenance changes only this owner's progress markers and SQLite ABI.
+FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE} AS translator-background-update
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE
+RUN python -c 'import os,re; assert re.fullmatch(r"aelev/translator-service:health-seed-sha256-[0-9a-f]{64}|.+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE"]), "PINNED_HEALTH_SEED_REQUIRED"'
+ENV LD_LIBRARY_PATH=/opt/aelev/sqlite:/opt/llama
+COPY --from=sqlite-builder /sqlite /opt/aelev/sqlite
+COPY src/translator_service/runtime.py src/translator_service/local_health.py src/translator_service/health_heartbeat.py /opt/aelev/src/translator_service/
+RUN python -S -c 'import sqlite3; assert sqlite3.sqlite_version == "3.53.4"'
+
+# Publisher migration does not replace its Python, SDK, OS or application code.
+FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE} AS translator-status-sqlite-update
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE
+RUN python -c 'import os,re; assert re.fullmatch(r"aelev/translator-service:health-seed-sha256-[0-9a-f]{64}|.+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE"]), "PINNED_HEALTH_SEED_REQUIRED"'
+ENV LD_LIBRARY_PATH=/opt/aelev/sqlite
+COPY --from=sqlite-builder /sqlite /opt/aelev/sqlite
+RUN python -S -c 'import sqlite3; assert sqlite3.sqlite_version == "3.53.4"'
 
 # Maintenance target: reuse only this owner's digest-pinned approved runtime.
 # The default fresh-build target below never depends on a prior release.

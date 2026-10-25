@@ -82,7 +82,7 @@ def verify_kafka() -> None:
 
 
 @app.get("/healthz", tags=["default"], summary="Check API process liveness")
-def health() -> dict[str, str]:
+async def health() -> dict[str, str]:
     """Confirm that the API responds; do not check Kafka, storage, or the model."""
     return {"status": "ok"}
 

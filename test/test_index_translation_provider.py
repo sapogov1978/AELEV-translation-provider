@@ -44,7 +44,9 @@ def engine(
     monkeypatch.setattr(provider.TranslationEngine, "_start_runtime", noop)
     item = provider.TranslationEngine(settings)
     item._runtime_loaded = True  # pyright: ignore[reportPrivateUsage]
-    item._process = Mock(poll=Mock(return_value=None))  # pyright: ignore[reportPrivateUsage]
+    item._process = Mock(  # pyright: ignore[reportPrivateUsage]
+        poll=Mock(return_value=None)
+    )
     return item
 
 
@@ -128,7 +130,9 @@ def test_batches_yield_to_waiting_request_in_fifo_order(
 
     def translate(values: list[str]) -> None:
         try:
-            engine._translate(values, source="en", target="de")  # pyright: ignore[reportPrivateUsage]
+            engine._translate(  # pyright: ignore[reportPrivateUsage]
+                values, source="en", target="de"
+            )
         except Exception as error:
             failures.append(error)
 
@@ -372,7 +376,9 @@ def test_http_timeout_kills_native_and_next_request_restarts(
     ) -> None:
         started.append(timeout_seconds)
         self._runtime_loaded = True  # pyright: ignore[reportPrivateUsage]
-        self._process = Mock(poll=Mock(return_value=None))  # pyright: ignore[reportPrivateUsage]
+        self._process = Mock(  # pyright: ignore[reportPrivateUsage]
+            poll=Mock(return_value=None)
+        )
 
     monkeypatch.setattr(provider.TranslationEngine, "_start_runtime", start)
     install_native(monkeypatch, [response("recovered")], [])

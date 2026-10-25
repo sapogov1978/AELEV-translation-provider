@@ -215,9 +215,9 @@ def test_download_publishes_only_verified_bytes_after_container_cleanup(
         "repository": "example.invalid/model",
         "revision": "a" * 40,
         "size_bytes": artifact.stat().st_size,
-        "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()
-        if valid
-        else "0" * 64,
+        "sha256": (
+            hashlib.sha256(artifact.read_bytes()).hexdigest() if valid else "0" * 64
+        ),
     }
     image = {
         "Id": "sha256:immutable",
@@ -326,7 +326,5 @@ def test_authorized_pause_restores_same_containers_even_after_failure(
     ]
     evidence = json.loads((tmp_path / "maintenance-result.json").read_text())
     assert evidence["restored"] and not evidence["errors"]
-    assert (
-        evidence["before"]["translator-model"]["id"]
-        == (evidence["after"]["translator-model"]["id"])
-    )
+    before_id = evidence["before"]["translator-model"]["id"]
+    assert before_id == evidence["after"]["translator-model"]["id"]

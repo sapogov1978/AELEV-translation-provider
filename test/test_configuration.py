@@ -38,7 +38,11 @@ def _clean_environment() -> dict[str, str]:
     return environment
 
 
-def _resolved_compose(path: Path = COMPOSE_PATH) -> dict[str, Any]:
+def _resolved_compose(
+    path: Path = COMPOSE_PATH, *, overrides: dict[str, str] | None = None
+) -> dict[str, Any]:
+    environment = _clean_environment()
+    environment.update(overrides or {})
     result = subprocess.run(
         [
             "docker",
@@ -53,7 +57,7 @@ def _resolved_compose(path: Path = COMPOSE_PATH) -> dict[str, Any]:
             "json",
         ],
         cwd=COMPONENT_ROOT,
-        env=_clean_environment(),
+        env=environment,
         capture_output=True,
         text=True,
         check=True,
@@ -63,6 +67,82 @@ def _resolved_compose(path: Path = COMPOSE_PATH) -> dict[str, Any]:
 
 @unittest.skipUnless(shutil.which("docker"), "Docker CLI is required")
 class TranslatorConfigurationTest(unittest.TestCase):
+    def test_background_probes_and_sender_do_not_import_the_application(self) -> None:
+        resolved = _resolved_compose(overrides={"COMPOSE_PROFILES": "*"})
+        services = resolved["services"]
+        for name, role in (
+            ("translator-normal-consumer", "consumer"),
+            ("translator-priority-consumer", "consumer"),
+            ("translator-worker", "worker"),
+            ("translator-outbox", "outbox"),
+        ):
+            selected = services[name]
+            self.assertEqual(
+                selected["environment"]["AELEV_TRANSLATOR_HEALTH_ROLE"], role
+            )
+            self.assertEqual(
+                selected["healthcheck"]["test"],
+                [
+                    "CMD",
+                    "python",
+                    "-S",
+                    "/opt/aelev/src/translator_service/local_health.py",
+                ],
+            )
+            self.assertEqual(selected["healthcheck"]["retries"], 3)
+        sender = services["translator-telemetry-sender"]
+        self.assertEqual(
+            sender["healthcheck"]["test"],
+            ["CMD", "python", "-S", "/opt/aelev/delivery_health.py"],
+        )
+        self.assertEqual(sender["stop_grace_period"], "1m0s")
+        self.assertEqual(
+            sender["depends_on"]["translator-telemetry-data-init"]["condition"],
+            "service_completed_successfully",
+        )
+        self.assertIn("@sha256:", sender["image"])
+        subnet = resolved["networks"]["translator-telemetry-egress"]["ipam"]["config"][
+            0
+        ]["subnet"]
+        self.assertEqual(subnet, "10.253.40.0/24")
+
+    def test_background_image_override_does_not_switch_api_or_model(self) -> None:
+        key = "AELEV_INFRASTRUCTURE_TRANSLATOR_BACKGROUND_IMAGE"
+        services = _resolved_compose(overrides={key: "own-background:checked"})[
+            "services"
+        ]
+        for name in (
+            "translator-normal-consumer",
+            "translator-priority-consumer",
+            "translator-worker",
+            "translator-outbox",
+        ):
+            self.assertEqual(services[name]["image"], "own-background:checked")
+        for name in ("translator-api", "translator-model"):
+            self.assertNotEqual(services[name]["image"], "own-background:checked")
+
+    def test_model_and_api_use_local_minimal_probes(self) -> None:
+        services = _resolved_compose()["services"]
+        for role, name, retries in (
+            ("model", "translator-model", 30),
+            ("api", "translator-api", 12),
+        ):
+            selected = services[name]
+            self.assertEqual(
+                selected["healthcheck"]["test"],
+                [
+                    "CMD",
+                    "python",
+                    "-S",
+                    "/opt/aelev/src/translator_service/local_health.py",
+                ],
+            )
+            self.assertEqual(
+                selected["environment"]["AELEV_TRANSLATOR_HEALTH_ROLE"], role
+            )
+            self.assertEqual(selected["healthcheck"]["timeout"], "5s")
+            self.assertEqual(selected["healthcheck"]["retries"], retries)
+
     def test_light_status_image_contains_required_lock_metadata(self) -> None:
         stage = (
             (COMPONENT_ROOT / "Dockerfile")
@@ -173,7 +253,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
         )
         self.assertEqual(
             resolved["services"]["translator-topic-provisioner"]["restart"],
-            "on-failure",
+            "on-failure:3",
         )
 
     def test_bundled_mode_starts_kafka_before_topic_provisioning(self) -> None:
@@ -328,15 +408,43 @@ class TranslatorConfigurationTest(unittest.TestCase):
         self.assertFalse(any("operator" in key or "ca.key" in key for key in mounts))
 
     def test_restart_policy_distinguishes_migration(self) -> None:
-        services = _resolved_compose()["services"]
+        services = _resolved_compose(overrides={"COMPOSE_PROFILES": "*"})["services"]
         for name, service in services.items():
-            if name == "translator-migrator":
+            if not name.startswith("translator-"):
+                continue  # Included providers own their recovery policy.
+            if name in {
+                "translator-migrator",
+                "translator-telemetry-data-init",
+                "translator-service-status-provision",
+                "translator-api-provision",
+            }:
                 expected = "no"
-            elif name == "translator-topic-provisioner":
-                expected = "on-failure"
             else:
-                expected = "unless-stopped"
+                expected = "on-failure:3"
             self.assertEqual(service.get("restart"), expected, name)
+
+    def test_restart_overrides_preserve_smaller_existing_budgets(self) -> None:
+        prefix = "AELEV_INFRASTRUCTURE_TRANSLATOR_"
+        services = _resolved_compose(
+            overrides={
+                "COMPOSE_PROFILES": "*",
+                prefix + "RESTART_POLICY": "on-failure:2",
+                prefix + "UI_RESTART_POLICY": "no",
+                prefix + "TELEMETRY_RESTART_POLICY": "on-failure:1",
+                prefix + "TOPIC_PROVISIONER_RESTART_POLICY": "no",
+            }
+        )["services"]
+        for name in ROLES - {"translator-migrator", "translator-topic-provisioner"}:
+            self.assertEqual(services[name]["restart"], "on-failure:2", name)
+        for name in (
+            "translator-service-status-publisher",
+            "translator-topic-provisioner",
+            "translator-migrator",
+        ):
+            self.assertEqual(services[name]["restart"], "no", name)
+        self.assertEqual(
+            services["translator-telemetry-sender"]["restart"], "on-failure:1"
+        )
 
 
 if __name__ == "__main__":

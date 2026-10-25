@@ -6,11 +6,61 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock
 
+import httpx
 import pytest
 from sqlalchemy.exc import OperationalError
 
 from translator_service import presence, runtime, topic_provisioner
 from translator_service.repository import Repository
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_compute_has_a_bounded_model_phase_and_returns_to_loop(
+    monkeypatch: pytest.MonkeyPatch, fail: bool
+) -> None:
+    progress = Mock()
+    monkeypatch.setattr(runtime.health_heartbeat, "progress", progress)
+    monkeypatch.setenv("AELEV_TRANSLATOR_SOCKET_PATH", "/tmp/unused.sock")
+    payload = {
+        "schema_version": "1.0.0",
+        "source_language": "en",
+        "target_language": "de",
+        "translator_ref": "test",
+        "text": "sample",
+        "source_digest": "unused",
+    }
+
+    class Client:
+        def __init__(self, **_kwargs: Any) -> None:
+            pass
+
+        def __enter__(self) -> "Client":
+            return self
+
+        def __exit__(self, *_args: Any) -> None:
+            pass
+
+        def post(self, _route: str, *, json: dict[str, Any]) -> httpx.Response:
+            assert json == payload
+            assert progress.call_args.args == ("worker", "model")
+            if fail:
+                raise httpx.ReadTimeout("isolated timeout")
+            return httpx.Response(
+                200,
+                json={**payload, "translated_text": "Beispiel"},
+                request=httpx.Request("POST", "http://private-model"),
+            )
+
+    monkeypatch.setattr(runtime.httpx, "Client", Client)
+    if fail:
+        with pytest.raises(httpx.ReadTimeout):
+            runtime.compute(payload)
+    else:
+        assert runtime.compute(payload)["status"] == "SUCCEEDED"
+    assert [call.args for call in progress.call_args_list] == [
+        ("worker", "model"),
+        ("worker",),
+    ]
 
 
 def test_production_repository_requires_verify_full(
