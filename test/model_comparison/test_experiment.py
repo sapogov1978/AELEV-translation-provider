@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -26,6 +27,14 @@ from .run import (
     verify,
 )
 from .worker import index_prompt, literal_checks
+
+
+def test_downloader_lock_excludes_the_vulnerable_filelock_releases() -> None:
+    packages = tomllib.loads((ROOT / "poetry.lock").read_text())["package"]
+    versions = [
+        package["version"] for package in packages if package["name"] == "filelock"
+    ]
+    assert versions == ["4.2.1"]
 
 
 def test_historical_lock_belongs_to_the_selected_image_not_the_active_model() -> None:
