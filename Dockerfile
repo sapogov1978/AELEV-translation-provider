@@ -141,6 +141,12 @@ ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE
 RUN python -c 'import os,re; assert re.fullmatch(r"aelev/translator-service:health-seed-sha256-[0-9a-f]{64}|.+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE"]), "PINNED_HEALTH_SEED_REQUIRED"'
 COPY src/translator_service/api.py src/translator_service/api_server.py src/translator_service/index_translation_provider.py src/translator_service/local_health.py src/translator_service/health_heartbeat.py /opt/aelev/src/translator_service/
 
+# Model lifecycle maintenance keeps the exact weights, OS and dependencies.
+FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE} AS translator-model-lifecycle-update
+ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE
+RUN python -c 'import os,re; assert re.fullmatch(r"aelev/translator-service:health-seed-sha256-[0-9a-f]{64}|.+@sha256:[0-9a-f]{64}", os.environ["AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE"]), "PINNED_HEALTH_SEED_REQUIRED"'
+COPY src/translator_service/index_translation_provider.py /opt/aelev/src/translator_service/
+
 # Maintenance changes only this owner's progress markers and SQLite ABI.
 FROM ${AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE} AS translator-background-update
 ARG AELEV_INFRASTRUCTURE_TRANSLATOR_HEALTH_SEED_IMAGE

@@ -2,8 +2,11 @@
 
 import hashlib
 import json
+import subprocess
+import sys
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -41,8 +44,9 @@ def engine(
     monkeypatch: pytest.MonkeyPatch, settings: provider.TranslationSettings
 ) -> provider.TranslationEngine:
     monkeypatch.setattr(provider, "verify_model_artifacts", noop)
-    monkeypatch.setattr(provider.TranslationEngine, "_start_runtime", noop)
-    item = provider.TranslationEngine(settings)
+    with monkeypatch.context() as construction:
+        construction.setattr(provider.TranslationEngine, "_start_runtime", noop)
+        item = provider.TranslationEngine(settings)
     item._runtime_loaded = True  # pyright: ignore[reportPrivateUsage]
     item._process = Mock(  # pyright: ignore[reportPrivateUsage]
         poll=Mock(return_value=None)
@@ -422,6 +426,151 @@ def test_native_not_ready_until_confirmed_health(
     assert arguments[arguments.index("--host") + 1] == "127.0.0.1"
     model.close()
     child.kill.assert_called_once()
+
+
+def test_unreaped_child_is_retained_and_cannot_be_replaced(
+    monkeypatch: pytest.MonkeyPatch, engine: provider.TranslationEngine
+) -> None:
+    child = engine._process  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(child, Mock)
+    child.wait.side_effect = subprocess.TimeoutExpired("private arguments", 5)
+    assert not engine._stop_runtime()  # pyright: ignore[reportPrivateUsage]
+    assert engine._process is child  # pyright: ignore[reportPrivateUsage]
+    assert not engine.runtime_ready
+    launch, version = Mock(), Mock()
+    monkeypatch.setattr(provider.subprocess, "Popen", launch)
+    monkeypatch.setattr(provider.subprocess, "run", version)
+    with pytest.raises(RuntimeError, match="TRANSLATOR_NATIVE_NOT_READY"):
+        engine._start_runtime()  # pyright: ignore[reportPrivateUsage]
+    child.kill.assert_called_once()
+    launch.assert_not_called()
+    version.assert_not_called()
+    child.poll.return_value = -9
+    child.wait.side_effect = None
+    child.wait.return_value = -9
+    assert engine._stop_runtime()  # pyright: ignore[reportPrivateUsage]
+    assert engine._process is None  # pyright: ignore[reportPrivateUsage]
+    assert engine._stop_runtime()  # pyright: ignore[reportPrivateUsage]
+
+
+def test_reap_timeout_does_not_replace_original_private_503(
+    engine: provider.TranslationEngine,
+) -> None:
+    child = engine._process  # pyright: ignore[reportPrivateUsage]
+    assert isinstance(child, Mock)
+    child.wait.side_effect = subprocess.TimeoutExpired("private arguments", 5)
+
+    def timeout(_: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("private transport text")
+
+    engine._client.close()  # pyright: ignore[reportPrivateUsage]
+    engine._client = httpx.Client(  # pyright: ignore[reportPrivateUsage]
+        base_url="http://127.0.0.1:8080", transport=httpx.MockTransport(timeout)
+    )
+    value = request(engine)
+    payload = {
+        "schema_version": "1.0.0",
+        "translator_ref": value.translator_ref,
+        "source_language": value.source_language,
+        "target_language": value.target_language,
+        "source_digest": value.source_digest,
+        "text": value.text,
+    }
+    with TestClient(provider.create_app(engine)) as connection:
+        client = cast(Any, connection)
+        response = client.post("/v1/translate-text", json=payload)
+        assert response.status_code == 503
+        assert response.json() == {"detail": "TRANSLATOR_DEADLINE_EXCEEDED"}
+        response = client.post("/v1/translate-text", json=payload)
+        assert response.status_code == 503
+        assert response.json() == {"detail": "TRANSLATOR_NATIVE_NOT_READY"}
+    assert engine._process is child  # pyright: ignore[reportPrivateUsage]
+    child.kill.assert_called_once()
+    assert "private" not in response.text
+
+
+def test_initial_load_has_its_own_budget(
+    monkeypatch: pytest.MonkeyPatch, settings: provider.TranslationSettings
+) -> None:
+    monkeypatch.setattr(provider, "verify_model_artifacts", noop)
+    monkeypatch.setattr(
+        provider.subprocess,
+        "run",
+        Mock(
+            return_value=SimpleNamespace(
+                stdout="d81235049384534c167caea52b85a694f6103d14", stderr=""
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        provider.subprocess,
+        "Popen",
+        Mock(return_value=Mock(poll=Mock(return_value=None))),
+    )
+    clock = [0.0]
+    monkeypatch.setattr(provider.time, "monotonic", lambda: clock[0])
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+
+    monkeypatch.setattr(provider.time, "sleep", sleep)
+
+    def health(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200 if clock[0] > 1 else 503, json={"status": "ok"})
+
+    original = httpx.Client
+
+    def client(**kwargs: Any) -> httpx.Client:
+        return original(**kwargs, transport=httpx.MockTransport(health))
+
+    monkeypatch.setattr(provider.httpx, "Client", client)
+    model = provider.TranslationEngine(
+        replace(settings, segment_timeout_seconds=0.5, startup_timeout_seconds=2)
+    )
+    assert clock[0] > 1 and model.runtime_ready
+    model.close()
+
+
+def test_version_probe_timeout_has_a_safe_retry_code(
+    monkeypatch: pytest.MonkeyPatch, settings: provider.TranslationSettings
+) -> None:
+    monkeypatch.setattr(provider, "verify_model_artifacts", noop)
+    monkeypatch.setattr(
+        provider.subprocess,
+        "run",
+        Mock(side_effect=subprocess.TimeoutExpired("private arguments", 10)),
+    )
+    with pytest.raises(RuntimeError, match="^TRANSLATOR_NATIVE_NOT_READY$"):
+        provider.TranslationEngine(settings)
+
+
+def test_real_child_is_reaped_before_ownership_is_released(
+    engine: provider.TranslationEngine,
+) -> None:
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    engine._process = child  # pyright: ignore[reportPrivateUsage]
+    try:
+        assert engine._stop_runtime()  # pyright: ignore[reportPrivateUsage]
+        assert child.poll() is not None
+        assert engine._process is None  # pyright: ignore[reportPrivateUsage]
+        assert not engine.runtime_ready
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait(timeout=5)
+
+
+@pytest.mark.parametrize("startup", ["0", "-1", "nan", "inf", "1801"])
+def test_invalid_startup_deadline_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, startup: str
+) -> None:
+    monkeypatch.setenv("AELEV_TRANSLATOR_LOCK_PATH", str(ROOT / "translator.lock.json"))
+    monkeypatch.setenv("AELEV_TRANSLATOR_BATCH_SIZE", "1")
+    monkeypatch.setenv("AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS", "240")
+    monkeypatch.setenv("AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS", "180")
+    monkeypatch.setenv("AELEV_TRANSLATOR_STARTUP_TIMEOUT_SECONDS", startup)
+    with pytest.raises(RuntimeError, match="startup deadline"):
+        provider.TranslationSettings.from_environment()
 
 
 def test_partial_native_revision_does_not_satisfy_full_pin(

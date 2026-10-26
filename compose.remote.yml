@@ -261,8 +261,9 @@ services:
 
   translator-model:
     <<: *image
+    image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_IMAGE:-${AELEV_INFRASTRUCTURE_TRANSLATOR_IMAGE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_IMAGE}}
     command: ["python", "-m", "translator_service.index_translation_provider", "serve"]
-    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}
+    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_RESTART_POLICY:-${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}}
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]
     security_opt: [no-new-privileges:true]
@@ -271,12 +272,14 @@ services:
       AELEV_TRANSLATOR_BATCH_SIZE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE in the translator-service .env file}
       AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS in the translator-service .env file}
       AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS in the translator-service .env file}
+      AELEV_TRANSLATOR_STARTUP_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS:-600}
     volumes: [translator-model-socket:/run/aelev-translator]
     network_mode: none
     mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT in the translator-service .env file}
     cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS in the translator-service .env file}
     healthcheck:
       test: ["CMD", "python", "-S", "/opt/aelev/src/translator_service/local_health.py"]
+      start_period: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS:-600}s
       interval: 10s
       timeout: 5s
       retries: 30

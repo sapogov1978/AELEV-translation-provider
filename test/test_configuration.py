@@ -121,6 +121,25 @@ class TranslatorConfigurationTest(unittest.TestCase):
         for name in ("translator-api", "translator-model"):
             self.assertNotEqual(services[name]["image"], "own-background:checked")
 
+    def test_model_override_is_isolated_and_has_a_startup_window(self) -> None:
+        services = _resolved_compose(
+            overrides={
+                "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_IMAGE": "own-model:checked",
+                "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_RESTART_POLICY": "on-failure:2",
+                "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS": "700",
+            }
+        )["services"]
+        model = services["translator-model"]
+        self.assertEqual(model["image"], "own-model:checked")
+        self.assertEqual(model["restart"], "on-failure:2")
+        self.assertEqual(model["healthcheck"]["start_period"], "11m40s")
+        self.assertEqual(
+            model["environment"]["AELEV_TRANSLATOR_STARTUP_TIMEOUT_SECONDS"], "700"
+        )
+        for name, service in services.items():
+            if name != "translator-model":
+                self.assertNotEqual(service.get("image"), "own-model:checked")
+
     def test_model_and_api_use_local_minimal_probes(self) -> None:
         services = _resolved_compose()["services"]
         for role, name, retries in (

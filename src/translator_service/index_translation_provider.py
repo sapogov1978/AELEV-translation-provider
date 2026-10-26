@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import stat
@@ -14,7 +15,7 @@ import threading
 import time
 from collections import OrderedDict, deque
 from collections.abc import AsyncGenerator, Generator
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, cast
@@ -37,6 +38,7 @@ from translator_service.retry import retry_code
 _MODEL_FILE = "Index-Translate-9B.Q4_K_M.gguf"
 _NATIVE_ORIGIN = "http://127.0.0.1:8080"
 _FIELDS = ("subject_area", "positive_terms", "excluded_terms", "excluded_topics")
+LOGGER = logging.getLogger(__name__)
 
 
 class TranslatorRuntimeRequestError(RuntimeError):
@@ -126,6 +128,7 @@ class TranslationSettings:
     batch_size: int
     request_timeout_seconds: float = 240
     segment_timeout_seconds: float = 180
+    startup_timeout_seconds: float = 600
 
     @classmethod
     def from_environment(cls) -> TranslationSettings:
@@ -134,11 +137,18 @@ class TranslationSettings:
         batch_size = int(os.environ["AELEV_TRANSLATOR_BATCH_SIZE"])
         request_timeout = float(os.environ["AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS"])
         segment_timeout = float(os.environ["AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS"])
+        startup_timeout = float(
+            os.environ.get("AELEV_TRANSLATOR_STARTUP_TIMEOUT_SECONDS", "600")
+        )
         if not 1 <= batch_size <= 32:
             raise RuntimeError("translator batch size must be between 1 and 32")
         if not 0 < segment_timeout <= request_timeout <= 240:
             raise RuntimeError(
                 "translator deadlines must satisfy 0 < segment <= request <= 240"
+            )
+        if not 0 < startup_timeout <= 1800:
+            raise RuntimeError(
+                "translator startup deadline must be within 1800 seconds"
             )
         return cls(
             Path(os.environ["AELEV_TRANSLATOR_MODEL_ROOT"]),
@@ -149,6 +159,7 @@ class TranslationSettings:
             batch_size,
             request_timeout,
             segment_timeout,
+            startup_timeout,
         )
 
 
@@ -187,6 +198,7 @@ class TranslationEngine:
             "AELEV_TRANSLATOR_RUNTIME_PATH", "/opt/llama/llama-server"
         )
         self._process: subprocess.Popen[bytes] | None = None
+        self._stop_requested = False
         self._runtime_loaded = False
         self._condition = threading.Condition()
         self._tickets: deque[object] = deque()
@@ -217,58 +229,70 @@ class TranslationEngine:
 
     def _start_runtime(self, timeout_seconds: float | None = None) -> None:
         self._runtime_loaded = False
+        if not self._stop_runtime():
+            LOGGER.warning("translator_native_stop_pending")
+            raise RuntimeError("TRANSLATOR_NATIVE_NOT_READY")
+        duration = self._settings.startup_timeout_seconds
+        if timeout_seconds is not None:
+            duration = min(duration, timeout_seconds)
+        if duration <= 0:
+            raise TimeoutError("TRANSLATOR_DEADLINE_EXCEEDED")
+        deadline = time.monotonic() + duration
         profile = self._profile
-        version = subprocess.run(
-            [self._binary, "--version"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
+        try:
+            version = subprocess.run(
+                [self._binary, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=min(10, duration),
+            )
+        except subprocess.TimeoutExpired as error:
+            LOGGER.warning("translator_native_startup_timeout")
+            raise RuntimeError("TRANSLATOR_NATIVE_NOT_READY") from error
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise RuntimeError("TRANSLATOR_NATIVE_UNAVAILABLE") from error
         if profile["revision"] not in version.stdout + version.stderr:
             raise RuntimeError("TRANSLATOR_NATIVE_VERSION_MISMATCH")
-        self._process = subprocess.Popen(
-            [
-                self._binary,
-                "--model",
-                str(self._settings.model_root / _MODEL_FILE),
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8080",
-                "--alias",
-                "index-translate",
-                "--threads",
-                str(profile["threads"]),
-                "--threads-batch",
-                str(profile["threads"]),
-                "--ctx-size",
-                str(profile["context_size"]),
-                "--parallel",
-                "1",
-                "--cache-ram",
-                "0",
-                "--fit",
-                "off",
-                "--n-gpu-layers",
-                "0",
-                "--jinja",
-                "--chat-template-kwargs",
-                '{"enable_thinking":false}',
-                "--no-webui",
-                "--no-warmup",
-                "--log-disable",
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        duration = (
-            self._settings.segment_timeout_seconds
-            if timeout_seconds is None
-            else timeout_seconds
-        )
-        deadline = time.monotonic() + duration
+        try:
+            self._process = subprocess.Popen(
+                [
+                    self._binary,
+                    "--model",
+                    str(self._settings.model_root / _MODEL_FILE),
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8080",
+                    "--alias",
+                    "index-translate",
+                    "--threads",
+                    str(profile["threads"]),
+                    "--threads-batch",
+                    str(profile["threads"]),
+                    "--ctx-size",
+                    str(profile["context_size"]),
+                    "--parallel",
+                    "1",
+                    "--cache-ram",
+                    "0",
+                    "--fit",
+                    "off",
+                    "--n-gpu-layers",
+                    "0",
+                    "--jinja",
+                    "--chat-template-kwargs",
+                    '{"enable_thinking":false}',
+                    "--no-webui",
+                    "--no-warmup",
+                    "--log-disable",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as error:
+            raise RuntimeError("TRANSLATOR_NATIVE_UNAVAILABLE") from error
         try:
             while self._process.poll() is None and time.monotonic() < deadline:
                 try:
@@ -282,17 +306,34 @@ class TranslationEngine:
                 except (httpx.HTTPError, ValueError):
                     pass
                 time.sleep(min(0.1, max(0, deadline - time.monotonic())))
-            raise RuntimeError("TRANSLATOR_NATIVE_NOT_READY")
+            if self._process.poll() is None:
+                LOGGER.warning("translator_native_startup_timeout")
+                raise RuntimeError("TRANSLATOR_NATIVE_NOT_READY")
+            raise RuntimeError("TRANSLATOR_NATIVE_UNAVAILABLE")
         except Exception:
             self._stop_runtime()
             raise
 
-    def _stop_runtime(self) -> None:
+    def _stop_runtime(self) -> bool:
+        """Retain ownership until reaped; cleanup never hides the request failure."""
         self._runtime_loaded = False
-        process, self._process = self._process, None
-        if process is not None and process.poll() is None:
-            process.kill()
+        process = self._process
+        if process is None:
+            return True
+        if self._stop_requested and process.poll() is None:
+            return False
+        try:
+            if process.poll() is None:
+                self._stop_requested = True
+                with suppress(ProcessLookupError):
+                    process.kill()
             process.wait(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            LOGGER.warning("translator_native_stop_pending")
+            return False
+        self._process = None
+        self._stop_requested = False
+        return True
 
     def close(self) -> None:
         self._stop_runtime()
@@ -424,10 +465,9 @@ class TranslationEngine:
         for offset in range(0, len(values), self._settings.batch_size):
             with self._runtime_slot(deadline):
                 if not self.runtime_ready:
-                    self._stop_runtime()
                     self._start_runtime(
                         min(
-                            self._settings.segment_timeout_seconds,
+                            self._settings.startup_timeout_seconds,
                             max(0, deadline - time.monotonic()),
                         )
                     )
