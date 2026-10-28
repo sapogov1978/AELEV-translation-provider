@@ -13,7 +13,8 @@
 | Проверенная выкладка схемы 0005 на стенд | [результат 18 октября](test/schema-0005-rollout-result-20261018.md) |
 | Порядок технических повторов и диагностика | [результат проверки и выкладки](test/stable-retry-result-20261018.md) |
 | Телеметрия владельца | `src/translator_service/observability.py`, `observability/` |
-| Локальная и удалённая топологии | `compose.local.yml`, `compose.remote.yml`, `compose.yml` |
+| Локальная и удалённая управляющие топологии | `compose.local.yml`, `compose.remote.yml`, `compose.yml` |
+| Самостоятельная вычислительная станция | [compute-runtime/README.md](compute-runtime/README.md), `compose.compute.yml` |
 | Закреплённая модель | `translator.lock.json`, `download-model.py` |
 | Проверки и сравнение моделей | [актуальная проверка готовности](test/production-readiness-result.md), `test/` |
 

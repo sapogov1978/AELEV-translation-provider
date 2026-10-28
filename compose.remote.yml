@@ -109,6 +109,7 @@ x-ui-status-environment: &ui-status-environment
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_MODULE_ID:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_INTERVAL_SECONDS:?set in the translator-service .env file}
   AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_TIMEOUT_SECONDS:?set in the translator-service .env file}
+  AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_DESIRED_STATE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_DESIRED_STATE:?set RUNNING or STOPPED in the translator-service .env file}
 
 x-operator-environment: &operator-environment
   AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT: ${AELEV_INFRASTRUCTURE_TRANSLATOR_ENVIRONMENT:?set in the translator-service .env file}
@@ -259,31 +260,6 @@ services:
     restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TOPIC_PROVISIONER_RESTART_POLICY:-on-failure:3}
     networks: [kafka]
 
-  translator-model:
-    <<: *image
-    image: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_IMAGE:-${AELEV_INFRASTRUCTURE_TRANSLATOR_IMAGE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_IMAGE}}
-    command: ["python", "-m", "translator_service.index_translation_provider", "serve"]
-    restart: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_RESTART_POLICY:-${AELEV_INFRASTRUCTURE_TRANSLATOR_RESTART_POLICY:-on-failure:3}}
-    read_only: true
-    tmpfs: ["/tmp:size=64m,mode=1777"]
-    security_opt: [no-new-privileges:true]
-    environment:
-      AELEV_TRANSLATOR_HEALTH_ROLE: model
-      AELEV_TRANSLATOR_BATCH_SIZE: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_BATCH_SIZE in the translator-service .env file}
-      AELEV_TRANSLATOR_REQUEST_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_REQUEST_TIMEOUT_SECONDS in the translator-service .env file}
-      AELEV_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_SEGMENT_TIMEOUT_SECONDS in the translator-service .env file}
-      AELEV_TRANSLATOR_STARTUP_TIMEOUT_SECONDS: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS:-600}
-    volumes: [translator-model-socket:/run/aelev-translator]
-    network_mode: none
-    mem_limit: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_MEMORY_LIMIT in the translator-service .env file}
-    cpus: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS:?set AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_CPUS in the translator-service .env file}
-    healthcheck:
-      test: ["CMD", "python", "-S", "/opt/aelev/src/translator_service/local_health.py"]
-      start_period: ${AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS:-600}s
-      interval: 10s
-      timeout: 5s
-      retries: 30
-
   translator-priority-consumer:
     <<: *background-role
     command: ["python", "-m", "translator_service.runtime", "consumer"]
@@ -313,24 +289,6 @@ services:
       translator-migrator: {condition: service_completed_successfully}
       translator-topic-provisioner: {condition: service_completed_successfully}
     networks: [translator-data, kafka, translator-telemetry]
-
-  translator-worker:
-    <<: *background-role
-    command: ["python", "-m", "translator_service.runtime", "worker"]
-    environment:
-      <<: *database-environment
-      AELEV_TRANSLATOR_SOCKET_PATH: /run/aelev-translator/translator.sock
-      AELEV_TRANSLATOR_HEALTH_ROLE: worker
-      AELEV_TRANSLATOR_HIGH_PRIORITY_BURST: ${AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST:?set AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST in the translator-service .env file}
-    volumes:
-      - translator-model-socket:/run/aelev-translator:ro
-      - *database-identity
-      - *telemetry-identity
-    depends_on:
-      translator-migrator: {condition: service_completed_successfully}
-      translator-model: {condition: service_healthy}
-    stop_grace_period: 250s
-    networks: [translator-data, translator-telemetry]
 
   translator-outbox:
     <<: *background-role
@@ -434,7 +392,6 @@ volumes:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_UI_STATE_VOLUME:?set in the translator-service .env file}
   translator-database-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME:?set AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_VOLUME in the translator-service .env file}
-  translator-model-socket:
   translator-telemetry-data:
     name: ${AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_VOLUME:?set in the translator-service .env file}
 

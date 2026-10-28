@@ -8,6 +8,7 @@ import threading
 import uuid
 from datetime import UTC, datetime
 
+import httpx
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -22,8 +23,13 @@ def observe_model() -> str:
     try:
         main()
         return "ONLINE"
+    except httpx.ConnectError:
+        # The worker and model share one owner-local Unix socket. A refused or
+        # missing socket proves that this compute cell cannot use the model;
+        # it does not identify the model implementation or inspect Docker.
+        return "OFFLINE"
     except Exception as error:
-        # Network failure is uncertainty, not proof of a stopped model.
+        # Timeout, invalid identity and malformed replies remain uncertainty.
         LOGGER.debug(
             "model_presence_unknown", extra={"error_type": type(error).__name__}
         )

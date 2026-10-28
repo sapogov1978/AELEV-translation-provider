@@ -110,6 +110,8 @@ RUN mkdir /source \
     && cmake --build /source/build --parallel 2 --target llama-server
 
 FROM python-bookworm AS translator-base
+LABEL io.aelev.compute.owner="translator-service" \
+      io.aelev.compute.station="1"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/opt/aelev/src \

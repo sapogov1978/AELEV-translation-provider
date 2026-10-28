@@ -13,19 +13,20 @@ from typing import Any, cast
 COMPONENT_ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_PATH = COMPONENT_ROOT / "compose.yml"
 REMOTE_COMPOSE_PATH = COMPONENT_ROOT / "compose.remote.yml"
+COMPUTE_COMPOSE_PATH = COMPONENT_ROOT / "compose.compute.yml"
 KAFKA_ENV_PATH = COMPONENT_ROOT.parent / "kafka/.env.example"
 ENV_PATH = COMPONENT_ROOT / ".env.example"
+COMPUTE_ENV_PATH = COMPONENT_ROOT / "compute-runtime/compute.env.example"
 ROLES = {
     "translator-api",
     "translator-database",
     "translator-migrator",
-    "translator-model",
     "translator-normal-consumer",
-    "translator-worker",
     "translator-outbox",
     "translator-priority-consumer",
     "translator-topic-provisioner",
 }
+COMPUTE_ROLES = {"translator-model", "translator-worker"}
 
 
 def _clean_environment() -> dict[str, str]:
@@ -39,7 +40,10 @@ def _clean_environment() -> dict[str, str]:
 
 
 def _resolved_compose(
-    path: Path = COMPOSE_PATH, *, overrides: dict[str, str] | None = None
+    path: Path = COMPOSE_PATH,
+    *,
+    env_path: Path = ENV_PATH,
+    overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     environment = _clean_environment()
     environment.update(overrides or {})
@@ -48,7 +52,7 @@ def _resolved_compose(
             "docker",
             "compose",
             "--env-file",
-            str(ENV_PATH),
+            str(env_path),
             "-f",
             str(path),
             "config",
@@ -65,6 +69,30 @@ def _resolved_compose(
     return cast(dict[str, Any], json.loads(result.stdout))
 
 
+def _resolved_compute(
+    *, overrides: dict[str, str] | None = None
+) -> dict[str, Any]:
+    values = {
+        "AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_IMAGE": (
+            "registry.example/translator@sha256:" + "a" * 64
+        ),
+        **(overrides or {}),
+    }
+    return _resolved_compose(
+        COMPUTE_COMPOSE_PATH,
+        env_path=COMPUTE_ENV_PATH,
+        overrides={
+            **values,
+            "AELEV_INFRASTRUCTURE_TRANSLATOR_DATABASE_SECRET_ROOT": (
+                str(COMPONENT_ROOT / "secrets/database")
+            ),
+            "AELEV_INFRASTRUCTURE_TRANSLATOR_TELEMETRY_SECRET_ROOT": (
+                str(COMPONENT_ROOT / "secrets/telemetry")
+            ),
+        },
+    )
+
+
 @unittest.skipUnless(shutil.which("docker"), "Docker CLI is required")
 class TranslatorConfigurationTest(unittest.TestCase):
     def test_background_probes_and_sender_do_not_import_the_application(self) -> None:
@@ -73,7 +101,6 @@ class TranslatorConfigurationTest(unittest.TestCase):
         for name, role in (
             ("translator-normal-consumer", "consumer"),
             ("translator-priority-consumer", "consumer"),
-            ("translator-worker", "worker"),
             ("translator-outbox", "outbox"),
         ):
             selected = services[name]
@@ -90,6 +117,19 @@ class TranslatorConfigurationTest(unittest.TestCase):
                 ],
             )
             self.assertEqual(selected["healthcheck"]["retries"], 3)
+        worker = _resolved_compute()["services"]["translator-worker"]
+        self.assertEqual(
+            worker["environment"]["AELEV_TRANSLATOR_HEALTH_ROLE"], "worker"
+        )
+        self.assertEqual(
+            worker["healthcheck"]["test"],
+            [
+                "CMD",
+                "python",
+                "-S",
+                "/opt/aelev/src/translator_service/local_health.py",
+            ],
+        )
         sender = services["translator-telemetry-sender"]
         self.assertEqual(
             sender["healthcheck"]["test"],
@@ -106,7 +146,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
         ]["subnet"]
         self.assertEqual(subnet, "10.253.40.0/24")
 
-    def test_background_image_override_does_not_switch_api_or_model(self) -> None:
+    def test_background_image_override_does_not_switch_api_or_compute(self) -> None:
         key = "AELEV_INFRASTRUCTURE_TRANSLATOR_BACKGROUND_IMAGE"
         services = _resolved_compose(overrides={key: "own-background:checked"})[
             "services"
@@ -114,23 +154,31 @@ class TranslatorConfigurationTest(unittest.TestCase):
         for name in (
             "translator-normal-consumer",
             "translator-priority-consumer",
-            "translator-worker",
             "translator-outbox",
         ):
             self.assertEqual(services[name]["image"], "own-background:checked")
-        for name in ("translator-api", "translator-model"):
-            self.assertNotEqual(services[name]["image"], "own-background:checked")
+        self.assertNotEqual(
+            services["translator-api"]["image"], "own-background:checked"
+        )
+        self.assertNotEqual(
+            _resolved_compute()["services"]["translator-model"]["image"],
+            "own-background:checked",
+        )
 
     def test_model_override_is_isolated_and_has_a_startup_window(self) -> None:
-        services = _resolved_compose(
+        services = _resolved_compute(
             overrides={
-                "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_IMAGE": "own-model:checked",
+                "AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_IMAGE": (
+                    "registry.example/own-model@sha256:" + "b" * 64
+                ),
                 "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_RESTART_POLICY": "on-failure:2",
                 "AELEV_INFRASTRUCTURE_TRANSLATOR_MODEL_STARTUP_TIMEOUT_SECONDS": "700",
             }
         )["services"]
         model = services["translator-model"]
-        self.assertEqual(model["image"], "own-model:checked")
+        self.assertEqual(
+            model["image"], "registry.example/own-model@sha256:" + "b" * 64
+        )
         self.assertEqual(model["restart"], "on-failure:2")
         self.assertEqual(model["healthcheck"]["start_period"], "11m40s")
         self.assertEqual(
@@ -138,15 +186,15 @@ class TranslatorConfigurationTest(unittest.TestCase):
         )
         for name, service in services.items():
             if name != "translator-model":
-                self.assertNotEqual(service.get("image"), "own-model:checked")
+                self.assertEqual(service.get("image"), model["image"])
 
     def test_model_and_api_use_local_minimal_probes(self) -> None:
-        services = _resolved_compose()["services"]
-        for role, name, retries in (
-            ("model", "translator-model", 30),
-            ("api", "translator-api", 12),
+        control = _resolved_compose()["services"]
+        compute = _resolved_compute()["services"]
+        for role, selected, retries in (
+            ("model", compute["translator-model"], 30),
+            ("api", control["translator-api"], 12),
         ):
-            selected = services[name]
             self.assertEqual(
                 selected["healthcheck"]["test"],
                 [
@@ -180,12 +228,18 @@ class TranslatorConfigurationTest(unittest.TestCase):
     def test_operator_entrypoints_are_owned_by_the_component(self) -> None:
         self.assertEqual(
             {path.name for path in COMPONENT_ROOT.glob("compose*.yml")},
-            {"compose.yml", "compose.remote.yml", "compose.local.yml"},
+            {
+                "compose.yml",
+                "compose.remote.yml",
+                "compose.local.yml",
+                "compose.compute.yml",
+            },
         )
         for name in (
             "compose.yml",
             "compose.remote.yml",
             "compose.local.yml",
+            "compose.compute.yml",
             ".env.example",
             "README.md",
             "Dockerfile",
@@ -199,6 +253,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
                 COMPOSE_PATH,
                 REMOTE_COMPOSE_PATH,
                 COMPONENT_ROOT / "compose.local.yml",
+                COMPUTE_COMPOSE_PATH,
             )
         )
         variables = [
@@ -217,10 +272,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
         resolved = _resolved_compose()
         self.assertEqual(resolved["name"], "aelev-infrastructure-translator")
         self.assertEqual(set(resolved["services"]), ROLES | {"kafka"})
-        self.assertEqual(
-            resolved["services"]["translator-model"]["build"]["target"],
-            "translator-runtime",
-        )
+        self.assertEqual(set(_resolved_compute()["services"]), COMPUTE_ROLES)
         self.assertEqual(
             resolved["volumes"]["translator-database-data"]["name"],
             "aelev-infrastructure-translator-database",
@@ -228,6 +280,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
 
     def test_role_secret_mounts_are_minimal(self) -> None:
         services = _resolved_compose()["services"]
+        compute = _resolved_compute()["services"]
 
         def targets(role: str) -> set[str]:
             return {
@@ -237,7 +290,11 @@ class TranslatorConfigurationTest(unittest.TestCase):
             }
 
         self.assertEqual(
-            targets("translator-worker"),
+            {
+                volume["target"]
+                for volume in compute["translator-worker"].get("volumes", [])
+                if isinstance(volume, dict)
+            },
             {
                 "/run/aelev-translator",
                 "/run/secrets/database",
@@ -256,7 +313,6 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "translator-topic-provisioner",
             "translator-priority-consumer",
             "translator-normal-consumer",
-            "translator-worker",
             "translator-outbox",
             "translator-api",
         ):
@@ -304,7 +360,6 @@ class TranslatorConfigurationTest(unittest.TestCase):
 
     def test_missing_required_setting_fails_before_start(self) -> None:
         for suffix in (
-            "HIGH_PRIORITY_BURST",
             "API_TRANSLATION_ENABLED",
             "API_TRANSLATION_TIMEOUT_SECONDS",
             "API_TRANSLATION_MAX_IN_FLIGHT",
@@ -333,23 +388,50 @@ class TranslatorConfigurationTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(variable, result.stderr)
 
+        variable = "AELEV_INFRASTRUCTURE_TRANSLATOR_HIGH_PRIORITY_BURST"
+        environment = _clean_environment()
+        environment[variable] = ""
+        environment["AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_IMAGE"] = (
+            "registry.example/translator@sha256:" + "a" * 64
+        )
+        result = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--env-file",
+                str(COMPUTE_ENV_PATH),
+                "-f",
+                str(COMPUTE_COMPOSE_PATH),
+                "config",
+                "--quiet",
+            ],
+            cwd=COMPONENT_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(variable, result.stderr)
+
     def test_private_socket_and_network_boundaries(self) -> None:
         services = _resolved_compose()["services"]
+        compute = _resolved_compute()["services"]
         socket_users = {
             name
-            for name, service in services.items()
+            for name, service in compute.items()
             if any(
                 volume.get("source") == "translator-model-socket"
                 for volume in service.get("volumes", [])
             )
         }
         self.assertEqual(socket_users, {"translator-model", "translator-worker"})
-        self.assertEqual(services["translator-model"]["network_mode"], "none")
+        self.assertEqual(compute["translator-model"]["network_mode"], "none")
         self.assertEqual(
-            set(services["translator-worker"]["networks"]),
+            set(compute["translator-worker"]["networks"]),
             {"translator-data", "translator-telemetry"},
         )
-        self.assertTrue(services["translator-worker"]["volumes"][0]["read_only"])
+        self.assertTrue(compute["translator-worker"]["volumes"][0]["read_only"])
         for role in (
             "translator-priority-consumer",
             "translator-normal-consumer",
@@ -372,7 +454,6 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "translator-migrator",
             "translator-priority-consumer",
             "translator-normal-consumer",
-            "translator-worker",
             "translator-outbox",
             "translator-api",
         ):
@@ -396,7 +477,7 @@ class TranslatorConfigurationTest(unittest.TestCase):
             "translation.requests.v1",
         )
         self.assertEqual(
-            services["translator-worker"]["environment"][
+            _resolved_compute()["services"]["translator-worker"]["environment"][
                 "AELEV_TRANSLATOR_HIGH_PRIORITY_BURST"
             ],
             "4",

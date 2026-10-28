@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, Mock
 
+import httpx
 import pytest
 from sqlalchemy import Engine
 
@@ -85,6 +86,19 @@ def test_model_failure_is_uncertainty(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(health, "main", Mock(side_effect=OSError("unreachable")))
     assert presence.observe_model() == "UNKNOWN"
+
+
+def test_missing_private_model_socket_is_offline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import translator_service.translator_healthcheck as health
+
+    error = httpx.ConnectError(
+        "private model socket is unavailable",
+        request=httpx.Request("GET", "http://translator/runtimez"),
+    )
+    monkeypatch.setattr(health, "main", Mock(side_effect=error))
+    assert presence.observe_model() == "OFFLINE"
 
 
 def test_consumer_heartbeat_stops_and_writes_only_presence(

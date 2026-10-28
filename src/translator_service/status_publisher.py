@@ -18,7 +18,7 @@ COMPONENTS = {
     "kafka-connection": "Соединение с Kafka",
     "priority-consumer": "Приоритетный consumer",
     "normal-consumer": "Обычный consumer",
-    "model": "Index-Translate 9B",
+    "model": "Вычислительная модель",
     "worker": "Исполнитель перевода",
     "outbox": "Outbox",
     "api": "Операционный API",
@@ -58,6 +58,12 @@ def description(cfg: Settings) -> bytes:
 
 
 def probe(cfg: Settings) -> tuple[str, list[dict[str, str]]]:
+    compute_desired_state = os.environ[
+        PREFIX + "COMPUTE_DESIRED_STATE"
+    ].strip().upper()
+    if compute_desired_state not in {"RUNNING", "STOPPED"}:
+        raise ValueError("TRANSLATOR_COMPUTE_DESIRED_STATE_INVALID")
+
     def kafka() -> str:
         try:
             verify_kafka()
@@ -85,6 +91,11 @@ def probe(cfg: Settings) -> tuple[str, list[dict[str, str]]]:
             }
             for role in roles
         )
+        if compute_desired_state == "STOPPED":
+            for observation in observations:
+                if observation["id"] in {"model", "worker"}:
+                    observation["state"] = "OFFLINE"
+                    observation["observed_at"] = timestamp()
     except Exception:
         observations.extend(
             {"id": role, "state": "UNKNOWN", "observed_at": timestamp()}
