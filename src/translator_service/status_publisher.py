@@ -19,7 +19,6 @@ COMPONENTS = {
     "priority-consumer": "Приоритетный consumer",
     "normal-consumer": "Обычный consumer",
     "model": "Вычислительная модель",
-    "worker": "Исполнитель перевода",
     "outbox": "Outbox",
     "api": "Операционный API",
     "publisher": "Издатель состояния переводчика",
@@ -83,17 +82,36 @@ def probe(cfg: Settings) -> tuple[str, list[dict[str, str]]]:
         observations.append(
             {"id": "database", "state": "ONLINE", "observed_at": timestamp()}
         )
-        observations.extend(
+        runtime = [
             {
                 "id": str(role["id"]),
                 "state": str(role["state"]),
                 "observed_at": role["observed_at"] or timestamp(),
             }
             for role in roles
+        ]
+        compute = [
+            observation
+            for observation in runtime
+            if observation["id"] in {"model", "worker"}
+        ]
+        if {observation["id"] for observation in compute} != {"model", "worker"}:
+            raise ValueError("TRANSLATOR_COMPUTE_OBSERVATION_INCOMPLETE")
+        observations.extend(
+            observation
+            for observation in runtime
+            if observation["id"] not in {"model", "worker"}
+        )
+        observations.append(
+            {
+                "id": "model",
+                "state": aggregate(compute),
+                "observed_at": timestamp(),
+            }
         )
         if compute_desired_state == "STOPPED":
             for observation in observations:
-                if observation["id"] in {"model", "worker"}:
+                if observation["id"] == "model":
                     observation["state"] = "OFFLINE"
                     observation["observed_at"] = timestamp()
     except Exception:
@@ -104,7 +122,6 @@ def probe(cfg: Settings) -> tuple[str, list[dict[str, str]]]:
                 "priority-consumer",
                 "normal-consumer",
                 "model",
-                "worker",
                 "outbox",
             )
         )

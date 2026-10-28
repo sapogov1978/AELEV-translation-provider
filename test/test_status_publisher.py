@@ -53,6 +53,7 @@ def test_description_is_own_technical_composition(cfg: Settings) -> None:
     model = next(part for part in value["components"] if part["id"] == "model")
     assert model["title"]["ru"] == "Вычислительная модель"
     assert "Index-Translate" not in model["title"]["ru"]
+    assert "worker" not in {part["id"] for part in value["components"]}
     assert value["service_kind"] == "INFRASTRUCTURE"
     assert value["sections"] == []
     assert [part["id"] for part in value["components"]] == list(owner.COMPONENTS)
@@ -154,5 +155,57 @@ def test_intentionally_stopped_compute_is_reported_offline(
         for observation in observations
         if observation["id"] in {"model", "worker"}
     }
-    assert compute == {"model": "OFFLINE", "worker": "OFFLINE"}
+    assert compute == {"model": "OFFLINE"}
     assert state == "OFFLINE"
+
+
+@pytest.mark.parametrize(
+    ("model", "worker", "expected"),
+    [
+        ("ONLINE", "ONLINE", "ONLINE"),
+        ("ONLINE", "UNKNOWN", "UNKNOWN"),
+        ("ONLINE", "OFFLINE", "OFFLINE"),
+    ],
+)
+def test_public_compute_component_aggregates_internal_model_and_worker(
+    cfg: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+    worker: str,
+    expected: str,
+) -> None:
+    repo = MagicMock()
+    monkeypatch.setattr(owner, "repository", Mock(return_value=repo))
+    monkeypatch.setattr(owner, "verify_kafka", Mock(return_value=None))
+    monkeypatch.setattr(
+        owner,
+        "read",
+        Mock(
+            return_value=[
+                {
+                    "id": name,
+                    "state": (
+                        model
+                        if name == "model"
+                        else worker
+                        if name == "worker"
+                        else "ONLINE"
+                    ),
+                    "observed_at": timestamp(),
+                }
+                for name in presence.COMPONENTS
+            ]
+        ),
+    )
+    connection = MagicMock()
+    response = connection.__enter__.return_value.get
+    response.return_value.status_code = 200
+    response.return_value.json.return_value = {"status": "ok"}
+    monkeypatch.setattr(httpx, "Client", Mock(return_value=connection))
+
+    state, observations = owner.probe(cfg)
+
+    public = {row["id"]: row["state"] for row in observations}
+    assert "worker" not in public
+    assert public["model"] == expected
+    assert state == expected
