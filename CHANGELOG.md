@@ -19,6 +19,8 @@
 - Reviewed two release-specific, semantically equivalent synthetic outputs in a
   digest-bound allowlist; the historical baseline, literal checks and all other
   exact comparisons remain unchanged.
+- The exact signed provider release passed all 20 approved synthetic quality
+  cases on a fresh GitHub-hosted runner and emitted hash-only PASS evidence.
 
 ## 2026-11-06
 

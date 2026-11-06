@@ -13,8 +13,9 @@
 - [x] Выполнить release workflow на GitHub-hosted Linux x86_64 runner и получить
   подписанный `name@sha256` artifact; evidence и точный digest сохранены в
   [release audit](docs/audit/provider-release-20261106.md).
-- [ ] Выполнить bounded real-model quality smoke для release digest и сохранить
-  evidence без пользовательских данных.
+- [x] Выполнить bounded real-model quality smoke для release digest: 20/20
+  утверждённых синтетических cases прошли, evidence сохранено в
+  [quality audit](docs/audit/provider-quality-20261106.md).
 - [ ] Пройти совместный clean-room gate Platform Infrastructure с точным
   Translator worker digest.
 
