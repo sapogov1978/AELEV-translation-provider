@@ -17,4 +17,5 @@
 | SBOM/provenance | [Docker attestations in GitHub Actions](https://docs.docker.com/build/ci/github-actions/attestations/) | `sbom: true`, `provenance: mode=max` |
 | GHCR publication | [GitHub publishing Docker images](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images) | Registry login, build and digest publication |
 | GHCR access | [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) | Private package permissions and digest pulls |
+| Release runner | [Adding self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners) и [runner labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow) | Регистрация isolated runner целевой архитектуры с label `aelev-provider-release` |
 | Image signature | [Sigstore Cosign container signing](https://docs.sigstore.dev/cosign/signing/signing_with_containers/) | Keyless GitHub OIDC signature of exact digest |

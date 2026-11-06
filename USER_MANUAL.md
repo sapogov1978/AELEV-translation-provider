@@ -27,6 +27,16 @@ docker build --target runtime-builder .
 
 ## Выпуск
 
+Release выполняется на отдельном Linux runner целевой архитектуры с labels
+`self-hosted` и `aelev-provider-release`. На runner должны быть Docker с
+BuildKit, не менее 40 GiB свободного рабочего места и доступ к GitHub/Hugging
+Face для verified build. Регистрационный token получает администратор прямо в
+GitHub и не передаёт его в чат или файлы репозитория. Добавление runner и
+назначение labels выполняются по официальным руководствам
+[Adding self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)
+и
+[Using labels with self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow).
+
 1. Измените код, `provider.lock.json` или документацию и добавьте запись в
    `CHANGELOG.md`.
 2. Выполните локальные проверки выше.

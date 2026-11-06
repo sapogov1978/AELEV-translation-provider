@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Documented the required release-runner label, capacity and official GitHub
+  registration procedure.
+
 ## 2026-11-06
 
 - Provider выделен из исторического дерева `translator-service` в отдельный
