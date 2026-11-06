@@ -139,6 +139,7 @@ def main() -> None:
         raise RuntimeError("QUALITY_CORPUS_BASELINE_MISMATCH")
 
     results: list[dict[str, Any]] = []
+    drifts: list[str] = []
     started = time.monotonic()
     for case in cases:
         case_id = case.get("id")
@@ -160,7 +161,7 @@ def main() -> None:
                 "QUALITY_BASELINE_ACTUAL:" + json.dumps(translated, ensure_ascii=False),
                 flush=True,
             )
-            raise RuntimeError(f"QUALITY_BASELINE_DRIFT:{case_id}")
+            drifts.append(case_id)
         results.append(
             {
                 "case_id": case_id,
@@ -170,6 +171,9 @@ def main() -> None:
             }
         )
         print(f"QUALITY_PASS:{case_id}", flush=True)
+
+    if drifts:
+        raise RuntimeError("QUALITY_BASELINE_DRIFT:" + ",".join(drifts))
 
     evidence = {
         "schema_version": 1,

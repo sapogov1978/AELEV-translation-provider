@@ -14,6 +14,8 @@
 - Quality drift diagnostics may print the expected and actual text only for the
   repository-owned synthetic corpus; arbitrary or user-provided text remains
   excluded from workflow evidence and logs.
+- The quality gate completes the entire bounded corpus before reporting all
+  synthetic baseline drifts, avoiding one rerun per diagnostic difference.
 
 ## 2026-11-06
 
