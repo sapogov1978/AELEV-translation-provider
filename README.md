@@ -1,32 +1,49 @@
-# Translator Service
+# AELEV Translation Provider
 
-Вспомогательный сервис перевода текстов локальной моделью. Запросы и результаты передаются через Kafka; сервис не знает предметной области заказчика, а операторская страница показывает вычислительную модель как отдельный компонент без привязки интерфейса к семейству модели.
+Самостоятельный приватный provider перевода для AELEV. Он владеет способом
+получения перевода: моделью, весами, нативным runtime, prompt, cache,
+проверкой артефактов и своим выпуском. `translator-service` из
+`AELEV-platform-infrastructure` этим не владеет и не знает, что находится за
+непрозрачным портом.
 
-## Основные возможности
+Provider принимает через Unix socket только текст и пару языков и возвращает
+только перевод с ограниченными предупреждениями. Kafka, очередь, задания,
+идемпотентность, operator API и сохранённые результаты остаются в Translator.
 
-- Обычная и приоритетная очереди.
-- Сохранение попыток и исходного порядка заданий при повторах.
-- Устойчивая публикация результатов.
-- Восстановление вычислителя с сохранением незавершённых заданий.
-- Диагностика и управление через операторский API.
-- Собственные метрики, журналы и трассы.
-
-## Запуск
-
-После подготовки по [руководству](USER_MANUAL.md), из этого каталога:
-
-```sh
-docker compose --env-file .env config --quiet
-docker compose --env-file .env up --build -d --wait --wait-timeout 900
+```mermaid
+flowchart LR
+    T[translator-service worker] -->|opaque HTTP v1 over UDS| P[translation provider]
+    P --> R[llama.cpp runtime]
+    R --> M[verified Index Translate weights]
+    P -. no model identity .-> T
 ```
 
-Для удалённого Kafka используется `compose.remote.yml`. По [ADR-0170](../../../docs/adr/20261028-0170-uniform-owner-compute-station-entry.md) основной Compose больше не содержит compute-профиля, model/worker или их socket volume. Эти внутренние процессы имеют единственный самодостаточный рецепт `compose.compute.yml` и одинаковые `doctor`, `prepare`, `start`, `status`, `stop` для macOS/Linux и Windows в [compute-runtime](compute-runtime/README.md). Станция получает маршрутизируемый доступ только к собственной PostgreSQL переводчика и Telemetry Delivery, а model общается с worker через локальный Unix socket. В Platform UI они представлены одной «Вычислительной моделью», готовой только при готовности обоих процессов; раздельные наблюдения остаются в `/v1/components`. На управляющей стороне `AELEV_INFRASTRUCTURE_TRANSLATOR_COMPUTE_DESIRED_STATE=STOPPED` является явным владельческим намерением и публикует этот единый компонент как `OFFLINE`; перед запуском ячейки значение меняется на `RUNNING`, после чего готовность определяется только свежими heartbeat.
+## Что где искать
 
-## Навигация
+- [INDEX.md](INDEX.md) — агентская карта репозитория.
+- [SPEC.md](SPEC.md) — нормативные границы и инварианты.
+- [USER_MANUAL.md](USER_MANUAL.md) — сборка, выпуск, эксплуатация и откат.
+- [architecture.mmd](architecture.mmd) — исходник архитектурной диаграммы.
+- [contracts/opaque-translation-v1.json](contracts/opaque-translation-v1.json) —
+  машинно-читаемый приватный контракт.
+- [provider.lock.json](provider.lock.json) — точные веса и runtime profile.
+- [docs/adr/INDEX.md](docs/adr/INDEX.md) — ключевые решения продукта.
+- [PROVENANCE.md](PROVENANCE.md) — сохранённая история выделения.
 
-- [src/](src/), [alembic/](alembic/) — реализация и миграции.
-- [translator.lock.json](translator.lock.json) — выбранная модель.
-- [compute-runtime/](compute-runtime/README.md) — единый запуск отдельной вычислительной станции.
-- [USER_MANUAL.md](USER_MANUAL.md), [SPEC.md](SPEC.md), [ENDPOINTS.md](ENDPOINTS.md) — эксплуатация, поведение и API.
-- [test/](test/), [secrets/](secrets/README.md) — проверки и описание секретов.
-- [index.md](index.md), [TASKS.md](TASKS.md), [CHANGELOG.md](CHANGELOG.md) — карта, готовность и история.
+## Проверка без загрузки модели
+
+```sh
+poetry install
+poetry run ruff check .
+poetry run ruff format --check .
+poetry run pyright
+poetry run pytest -q
+docker build --target test .
+```
+
+Полный runtime image содержит проверенные веса и потому собирается только
+release pipeline. Рабочее развёртывание использует исключительно точный
+`ghcr.io/sapogov1978/aelev-translation-provider@sha256:...`, а не mutable tag.
+
+Официальные документы поставщиков собраны в
+[docs/references/official-sources.md](docs/references/official-sources.md).

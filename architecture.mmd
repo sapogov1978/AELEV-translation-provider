@@ -1,0 +1,8 @@
+flowchart LR
+    W[Translator worker] -->|POST /v1/translate<br/>UDS only| A[Provider FastAPI]
+    A -->|loopback only| L[llama-server]
+    L --> G[Verified GGUF]
+    K[provider.lock.json] --> A
+    K --> L
+    H[Image HEALTHCHECK] -->|GET /healthz<br/>UDS only| A
+    A -. translated text + bounded warnings .-> W
