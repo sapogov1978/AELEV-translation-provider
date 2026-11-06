@@ -3,7 +3,9 @@
 ## Unreleased
 
 - Switched the provider release to an ephemeral GitHub-hosted Ubuntu 24.04 x86_64
-  runner; self-hosted infrastructure is now only an evidence-driven fallback.
+  runner, reclaiming unused preinstalled SDK space and disabling the oversized
+  release cache; self-hosted infrastructure is now only an evidence-driven
+  fallback.
 
 ## 2026-11-06
 
