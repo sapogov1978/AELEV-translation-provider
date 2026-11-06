@@ -13,5 +13,7 @@
 | Где readiness и запуск | `src/aelev_translation_provider/__main__.py`, `healthcheck.py` |
 | Где ключевые решения | `docs/adr/INDEX.md` |
 | Где официальные основания | `docs/references/official-sources.md` |
+| Какие admission gates открыты | `TASKS.md` |
+| Какие третьи компоненты входят в image | `THIRD_PARTY_NOTICES.md`, `/licenses` image |
 | Откуда пришла история | `PROVENANCE.md`, `docs/audit/model-selection/` |
 | Где автоматические проверки | `test/`, `.github/workflows/` |

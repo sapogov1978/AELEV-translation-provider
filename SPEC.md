@@ -82,3 +82,6 @@ provenance и keyless signature. В production допускается exact dige
 6. clean-room функционального gate Platform Infrastructure.
 
 Tag, успешная локальная сборка или healthcheck сами по себе admission не дают.
+Image digest является platform-specific, пока release явно не собрал и не
+проверил multi-platform manifest. Архитектура release runner должна совпадать
+с целевой площадкой; неподтверждённая архитектура не считается поддерживаемой.

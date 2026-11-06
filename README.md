@@ -29,6 +29,8 @@ flowchart LR
 - [provider.lock.json](provider.lock.json) — точные веса и runtime profile.
 - [docs/adr/INDEX.md](docs/adr/INDEX.md) — ключевые решения продукта.
 - [PROVENANCE.md](PROVENANCE.md) — сохранённая история выделения.
+- [TASKS.md](TASKS.md) — открытые release/admission gates.
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — лицензии встроенных компонентов.
 
 ## Проверка без загрузки модели
 

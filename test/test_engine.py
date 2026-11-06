@@ -53,6 +53,8 @@ def test_lock_and_docker_recipe_pin_the_same_release() -> None:
     assert reference == lock["execution_ref"]
     assert set(artifacts) == {engine.MODEL_FILE}
     assert "translator_service" not in recipe
+    assert "Index-Translate-Apache-2.0.txt" in recipe
+    assert "llama.cpp-MIT.txt" in recipe
 
 
 @pytest.mark.parametrize(

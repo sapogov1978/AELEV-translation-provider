@@ -52,6 +52,10 @@ RUN mkdir /source \
        -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF \
     && cmake --build /source/build --parallel 2 --target llama-server
 
+FROM scratch AS license-assets
+ADD --checksum=sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30 https://www.apache.org/licenses/LICENSE-2.0.txt /licenses/Index-Translate-Apache-2.0.txt
+ADD --checksum=sha256:94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d https://raw.githubusercontent.com/ggml-org/llama.cpp/d81235049384534c167caea52b85a694f6103d14/LICENSE /licenses/llama.cpp-MIT.txt
+
 FROM python-bookworm AS runtime
 LABEL org.opencontainers.image.source="https://github.com/sapogov1978/AELEV-translation-provider" \
       io.aelev.translation-provider.contract="opaque-v1"
@@ -75,9 +79,11 @@ COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN python -m pip uninstall --yes pip \
     && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
 COPY --from=runtime-builder /source/build/bin/ /opt/llama/
+COPY --from=license-assets /licenses /licenses
 COPY --from=model-assets --chown=10001:10001 --chmod=0444 /model/Index-Translate-9B.Q4_K_M.gguf /opt/aelev/model/Index-Translate-9B.Q4_K_M.gguf
 COPY --chown=10001:10001 --chmod=0444 provider.lock.json ./provider.lock.json
 COPY --chown=10001:10001 src ./src
+COPY --chown=10001:10001 --chmod=0444 THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md
 USER 10001:10001
 RUN python -m aelev_translation_provider verify-model
 HEALTHCHECK --interval=10s --timeout=5s --retries=30 \
