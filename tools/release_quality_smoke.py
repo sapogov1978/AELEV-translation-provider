@@ -151,6 +151,15 @@ def main() -> None:
             details = ",".join(failures)
             raise RuntimeError(f"QUALITY_LITERAL_FAILURE:{case_id}:{details}")
         if translated != baseline[case_id]:
+            print(
+                "QUALITY_BASELINE_EXPECTED:"
+                + json.dumps(baseline[case_id], ensure_ascii=False),
+                flush=True,
+            )
+            print(
+                "QUALITY_BASELINE_ACTUAL:" + json.dumps(translated, ensure_ascii=False),
+                flush=True,
+            )
             raise RuntimeError(f"QUALITY_BASELINE_DRIFT:{case_id}")
         results.append(
             {

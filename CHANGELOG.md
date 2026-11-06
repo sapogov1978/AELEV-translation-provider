@@ -11,6 +11,9 @@
 - Added a bounded GitHub-hosted quality gate that exercises the exact release
   digest over the approved 20-case synthetic corpus through the opaque UDS and
   emits output hashes without user data.
+- Quality drift diagnostics may print the expected and actual text only for the
+  repository-owned synthetic corpus; arbitrary or user-provided text remains
+  excluded from workflow evidence and logs.
 
 ## 2026-11-06
 
