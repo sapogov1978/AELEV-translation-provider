@@ -48,6 +48,11 @@ fallback после повторяемой нехватки hosted-ресурс�
    подписывает точный digest через GitHub OIDC.
 5. Возьмите digest из job summary или artifact `release-digest`; tag не
    используйте для admission.
+6. Запустите `quality-smoke-provider-release`: он загружает exact digest,
+   поднимает его с ограниченными правами и ресурсами и проверяет через opaque
+   UDS утверждённый синтетический корпус из 20 примеров против сохранённого
+   результата той же модели/runtime. Evidence содержит только case ID, хеши и
+   длительности, а не пользовательские данные.
 
 Release workflow публикует в private GHCR через краткоживущий встроенный
 `GITHUB_TOKEN`; отдельный registry credential для публикации не нужен. Для

@@ -8,6 +8,9 @@
   fallback.
 - Published the first verified Linux amd64 provider image with SBOM, provenance,
   keyless signature and an immutable digest artifact.
+- Added a bounded GitHub-hosted quality gate that exercises the exact release
+  digest over the approved 20-case synthetic corpus through the opaque UDS and
+  emits output hashes without user data.
 
 ## 2026-11-06
 

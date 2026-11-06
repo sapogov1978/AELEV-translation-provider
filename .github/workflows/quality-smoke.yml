@@ -1,0 +1,68 @@
+name: quality-smoke-provider-release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  approved-corpus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      IMAGE_REF: ghcr.io/sapogov1978/aelev-translation-provider@sha256:4a820a13e6a03188589c09d14e52b5f2d05e9359d7df847bad768966016e9ec9
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          clean: true
+      - name: Free ephemeral runner space for released image
+        run: |
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/local/.ghcup \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and start exact provider release
+        run: |
+          docker pull "$IMAGE_REF"
+          install -d -m 0777 "$RUNNER_TEMP/provider-socket"
+          docker run --detach --name aelev-provider-quality-smoke \
+            --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --cpus 2 --memory 8g --memory-swap 8g \
+            --tmpfs /tmp:rw,noexec,nosuid,size=128m \
+            --mount "type=bind,src=$RUNNER_TEMP/provider-socket,dst=/run/aelev-translator" \
+            "$IMAGE_REF"
+      - name: Wait for image-owned readiness
+        run: |
+          for attempt in $(seq 1 90); do
+            state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' aelev-provider-quality-smoke)"
+            test "$state" = "unhealthy" && exit 1
+            test "$state" = "healthy" && exit 0
+            sleep 10
+          done
+          exit 1
+      - name: Execute approved synthetic corpus
+        run: |
+          python3 tools/release_quality_smoke.py \
+            --socket "$RUNNER_TEMP/provider-socket/translator.sock" \
+            --image "$IMAGE_REF" \
+            --output "$RUNNER_TEMP/provider-quality-evidence.json"
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: provider-quality-evidence
+          path: ${{ runner.temp }}/provider-quality-evidence.json
+          if-no-files-found: error
+      - name: Bounded cleanup
+        if: always()
+        run: |
+          docker stop --time 30 aelev-provider-quality-smoke 2>/dev/null || true
+          docker rm aelev-provider-quality-smoke 2>/dev/null || true

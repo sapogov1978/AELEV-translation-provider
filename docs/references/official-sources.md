@@ -18,4 +18,5 @@
 | GHCR publication | [GitHub publishing Docker images](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images) | Registry login, build and digest publication |
 | GHCR access | [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) | Private package permissions and digest pulls |
 | Release runner | [GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners) | Одноразовый `ubuntu-24.04` Linux x86_64 runner без отдельной регистрации |
+| Manual quality gate | [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) | Bounded smoke exact release digest на утверждённом синтетическом корпусе |
 | Image signature | [Sigstore Cosign container signing](https://docs.sigstore.dev/cosign/signing/signing_with_containers/) | Keyless GitHub OIDC signature of exact digest |
