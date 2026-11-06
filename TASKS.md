@@ -10,9 +10,9 @@
   exact native runtime build локально и в независимом CI.
 - [x] Добавить SBOM/provenance/keyless-signature release pipeline и license
   notices встроенных третьих компонентов.
-- [ ] Выполнить release workflow на GitHub-hosted Linux x86_64 runner и получить
-  подписанный `name@sha256` artifact; self-hosted fallback вводить только при
-  доказанной нехватке hosted-ресурсов.
+- [x] Выполнить release workflow на GitHub-hosted Linux x86_64 runner и получить
+  подписанный `name@sha256` artifact; evidence и точный digest сохранены в
+  [release audit](docs/audit/provider-release-20261106.md).
 - [ ] Выполнить bounded real-model quality smoke для release digest и сохранить
   evidence без пользовательских данных.
 - [ ] Пройти совместный clean-room gate Platform Infrastructure с точным

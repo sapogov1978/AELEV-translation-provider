@@ -6,6 +6,8 @@
   runner, reclaiming unused preinstalled SDK space and disabling the oversized
   release cache; self-hosted infrastructure is now only an evidence-driven
   fallback.
+- Published the first verified Linux amd64 provider image with SBOM, provenance,
+  keyless signature and an immutable digest artifact.
 
 ## 2026-11-06
 
