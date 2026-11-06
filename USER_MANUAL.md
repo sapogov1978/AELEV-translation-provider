@@ -27,15 +27,14 @@ docker build --target runtime-builder .
 
 ## Выпуск
 
-Release выполняется на отдельном Linux runner целевой архитектуры с labels
-`self-hosted` и `aelev-provider-release`. На runner должны быть Docker с
-BuildKit, не менее 40 GiB свободного рабочего места и доступ к GitHub/Hugging
-Face для verified build. Регистрационный token получает администратор прямо в
-GitHub и не передаёт его в чат или файлы репозитория. Добавление runner и
-назначение labels выполняются по официальным руководствам
-[Adding self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)
-и
-[Using labels with self-hosted runners](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow).
+Release по умолчанию выполняется на одноразовом GitHub-hosted runner
+`ubuntu-24.04` с архитектурой Linux x86_64. GitHub создаёт и удаляет runner
+автоматически; отдельный сервер, регистрационный token и постоянный агент не
+требуются. Workflow записывает фактическую архитектуру и доступный диск до
+сборки. Self-hosted runner допускается только как явно документированный
+fallback после доказанной нехватки hosted-ресурсов или для выпуска под другую
+целевую архитектуру. Официальное описание окружения:
+[GitHub-hosted runners](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners).
 
 1. Измените код, `provider.lock.json` или документацию и добавьте запись в
    `CHANGELOG.md`.
@@ -47,9 +46,11 @@ GitHub и не передаёт его в чат или файлы репози�
 5. Возьмите digest из job summary или artifact `release-digest`; tag не
    используйте для admission.
 
-Для private GHCR runner заранее аутентифицируется локально или через
-environment secret с правом только `read:packages`. Credential не передаётся в
-чат и не записывается в repository files. Официальные инструкции:
+Release workflow публикует в private GHCR через краткоживущий встроенный
+`GITHUB_TOKEN`; отдельный registry credential для публикации не нужен. Для
+последующего pull на целевой площадке credential хранится только локально с
+правом `read:packages`, не передаётся в чат и не записывается в repository
+files. Официальные инструкции:
 [GitHub Container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry),
 [publishing Docker images](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images),
 [Docker SBOM/provenance](https://docs.docker.com/build/ci/github-actions/attestations/)

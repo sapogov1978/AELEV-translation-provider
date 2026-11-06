@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Documented the required release-runner label, capacity and official GitHub
-  registration procedure.
+- Switched the provider release to an ephemeral GitHub-hosted Ubuntu 24.04 x86_64
+  runner; self-hosted infrastructure is now only an evidence-driven fallback.
 
 ## 2026-11-06
 
