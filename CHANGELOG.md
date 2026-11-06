@@ -16,6 +16,9 @@
   excluded from workflow evidence and logs.
 - The quality gate completes the entire bounded corpus before reporting all
   synthetic baseline drifts, avoiding one rerun per diagnostic difference.
+- Reviewed two release-specific, semantically equivalent synthetic outputs in a
+  digest-bound allowlist; the historical baseline, literal checks and all other
+  exact comparisons remain unchanged.
 
 ## 2026-11-06
 

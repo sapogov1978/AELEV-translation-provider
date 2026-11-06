@@ -15,6 +15,7 @@ from typing import Any, cast
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "docs/audit/model-selection/cases.json"
 BASELINE = ROOT / "docs/audit/model-selection/index-9b-result.json"
+ALTERNATES = ROOT / "quality/approved-alternates.json"
 
 
 class UnixHTTPConnection(http.client.HTTPConnection):
@@ -58,6 +59,33 @@ def expected_outputs(path: Path) -> dict[str, str]:
             raise RuntimeError("QUALITY_BASELINE_INVALID")
         expected[case_id] = translated
     return expected
+
+
+def approved_alternates(path: Path, image: str) -> dict[str, set[str]]:
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(document, dict)
+        or document.get("schema_version") != 1
+        or document.get("release_image") != image
+        or not isinstance(document.get("cases"), dict)
+    ):
+        raise RuntimeError("QUALITY_ALTERNATES_INVALID")
+    accepted: dict[str, set[str]] = {}
+    for case_id, raw in document["cases"].items():
+        if (
+            not isinstance(case_id, str)
+            or not isinstance(raw, dict)
+            or not isinstance(raw.get("accepted_outputs"), list)
+            or not raw["accepted_outputs"]
+            or not all(
+                isinstance(value, str) and value for value in raw["accepted_outputs"]
+            )
+            or not isinstance(raw.get("rationale"), str)
+            or not raw["rationale"]
+        ):
+            raise RuntimeError("QUALITY_ALTERNATES_INVALID")
+        accepted[case_id] = set(raw["accepted_outputs"])
+    return accepted
 
 
 def translate(socket_path: Path, case: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
@@ -135,8 +163,11 @@ def main() -> None:
 
     cases = objects(CORPUS)
     baseline = expected_outputs(BASELINE)
+    alternates = approved_alternates(ALTERNATES, args.image)
     if len(cases) != 20 or set(baseline) != {str(case.get("id")) for case in cases}:
         raise RuntimeError("QUALITY_CORPUS_BASELINE_MISMATCH")
+    if not set(alternates).issubset(baseline):
+        raise RuntimeError("QUALITY_ALTERNATES_INVALID")
 
     results: list[dict[str, Any]] = []
     drifts: list[str] = []
@@ -151,7 +182,9 @@ def main() -> None:
         if failures:
             details = ",".join(failures)
             raise RuntimeError(f"QUALITY_LITERAL_FAILURE:{case_id}:{details}")
-        if translated != baseline[case_id]:
+        baseline_match = translated == baseline[case_id]
+        alternate_match = translated in alternates.get(case_id, set())
+        if not baseline_match and not alternate_match:
             print(
                 "QUALITY_BASELINE_EXPECTED:"
                 + json.dumps(baseline[case_id], ensure_ascii=False),
@@ -162,11 +195,15 @@ def main() -> None:
                 flush=True,
             )
             drifts.append(case_id)
+        elif alternate_match:
+            print(f"QUALITY_APPROVED_ALTERNATE:{case_id}", flush=True)
         results.append(
             {
                 "case_id": case_id,
                 "elapsed_seconds": round(time.monotonic() - case_started, 3),
                 "output_sha256": hashlib.sha256(translated.encode()).hexdigest(),
+                "baseline_match": baseline_match,
+                "approved_alternate": alternate_match,
                 "warnings": list(warnings),
             }
         )
@@ -181,6 +218,7 @@ def main() -> None:
         "image": args.image,
         "corpus_sha256": file_digest(CORPUS),
         "baseline_sha256": file_digest(BASELINE),
+        "approved_alternates_sha256": file_digest(ALTERNATES),
         "case_count": len(results),
         "elapsed_seconds": round(time.monotonic() - started, 3),
         "results": results,
