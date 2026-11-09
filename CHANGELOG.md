@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Provider release publishes one signed multi-platform index for
+  `linux/amd64` and `linux/arm64`, so the immutable digest is directly runnable
+  on hosted Linux and Apple Silicon Docker without emulation.
 - Removed the standalone model, weight downloader and native `llama.cpp` runtime
   from the active build and image.
 - Added a lock-pinned OpenAI Responses API client using `gpt-6.1-sol` over

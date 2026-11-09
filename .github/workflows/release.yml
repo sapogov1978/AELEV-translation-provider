@@ -39,6 +39,7 @@ jobs:
           context: .
           target: runtime
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/sapogov1978/aelev-translation-provider:${{ github.sha }}
           sbom: true
