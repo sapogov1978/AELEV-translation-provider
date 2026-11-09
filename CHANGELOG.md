@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Removed the standalone model, weight downloader and native `llama.cpp` runtime
+  from the active build and image.
+- Added a lock-pinned OpenAI Responses API client using `gpt-6.1-sol` over
+  direct HTTPS with system CA verification.
+- Added a digest-pinned domain-preserving prompt, full-segment language context,
+  `store=false`, strict structured output and bounded opaque failures.
+- Added an ignored `.env.local` API-key placeholder; no credential is committed,
+  printed, sent in the Docker build context or required by offline validation
+  and image build.
+- Kept opaque UDS v1 unchanged; the prepared Platform compute recipe leaves the
+  local API key as the only missing runtime input before a bounded live check.
 - Switched the provider release to an ephemeral GitHub-hosted Ubuntu 24.04 x86_64
   runner, reclaiming unused preinstalled SDK space and disabling the oversized
   release cache; self-hosted infrastructure is now only an evidence-driven

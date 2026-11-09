@@ -28,14 +28,6 @@ jobs:
           poetry run pyright
           poetry run pytest -q
       - name: Validate Docker test target
-        run: |
-          docker build --target test .
-          docker build --target license-assets .
-
-  native-runtime:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Build exact llama.cpp runtime
-        run: docker build --target runtime-builder .
+        run: docker build --target test .
+      - name: Validate runtime image build without credentials or startup
+        run: docker build --target runtime .

@@ -2,86 +2,72 @@
 
 ## Ответственность
 
-Provider является единственным владельцем конкретной реализации перевода:
-выбора модели, версии весов, prompt, нативного runtime, локального cache,
-проверки целостности и Docker healthcheck. Он не владеет Kafka topics,
-заданиями Translator, consumer identity, приоритетом, retry journal,
-checkpoints, operator API или пользовательским применением результата.
+Provider — единственный владелец реализации перевода: выбора API
+модели, prompt, локального cache, обработки provider credential, HTTPS-клиента,
+проверки ответа и image healthcheck. Он не владеет Kafka topics, заданиями
+Translator, consumer identity, приоритетом, retry journal, checkpoints,
+operator API или применением результата.
+
+Standalone-веса, downloader и native inference runtime запрещены в активной
+сборке и runtime image. Их исторические audit-материалы не являются
+действующим runtime-контрактом.
 
 ## Непрозрачный порт
 
-Единственный внешний transport — HTTP/1.1 поверх Unix socket
-`/run/aelev-translator/translator.sock`. Порт не публикуется по TCP и доступен
-только паре provider/worker через отдельный runtime volume.
+Единственный внешний transport для Translator — HTTP/1.1 по Unix socket
+`/run/aelev-translator/translator.sock`. `POST /v1/translate` принимает ровно
+`schema_version`, `source_language`, `target_language` и `text`. Успешный
+ответ содержит только `schema_version`, `translated_text` и `warnings`.
+Формальная схема — [contracts/opaque-translation-v1.json](contracts/opaque-translation-v1.json).
 
-`POST /v1/translate` принимает ровно:
+Model/API identity, execution reference, prompt, credential,
+request/job identity и provider-specific settings через порт не проходят.
+Невалидный запрос и безопасно классифицируемый семантический отказ
+дают 422. Deadline, API failure и невалидный ответ дают 503 с
+ограниченным кодом без сырого тела upstream-ответа.
 
-```json
-{
-  "schema_version": "1.0.0",
-  "source_language": "en",
-  "target_language": "de",
-  "text": "Hello"
-}
-```
+## API-исполнение и предметная область
 
-Ответ 200 содержит ровно `schema_version`, непустой `translated_text` и
-`warnings`. Запрещены model name, model version, engine, execution reference,
-prompt, cache key, request/job identity и любые provider-specific поля.
-Формальная схема находится в [contracts](contracts/opaque-translation-v1.json).
+`provider.lock.json` закрепляет OpenAI Responses endpoint, model ID
+`gpt-6.1-sol`, reasoning effort, output budget, `store=false`, exact prompt SHA-256 и
+direct HTTPS transport profile. Код не привязан к этому model ID: его замена
+выполняется новым lock, quality evidence и provider release, не изменением
+opaque-контракта.
 
-Невалидный запрос и безопасно классифицируемый семантический отказ дают 422 с
-ограниченным кодом. Неготовность, deadline, смерть runtime и невалидный ответ
-дают 503 с ограниченным кодом. Произвольный текст исключения, fragment output
-и внутренний ответ `llama-server` через границу не проходят.
+В Responses API передаётся весь полученный сегмент, коды и названия
+языков и provider-owned instructions. Модель должна молча определить
+предметную область всего сегмента и сохранить терминологию, смысл,
+регистр, единицы, имена, идентификаторы, код и связи между фразами.
+Исходный текст считается данными, а не instructions. Ответ принимается
+только по strict JSON schema.
 
-`GET /healthz` возвращает 200 только когда Python provider и его нативный
-runtime живы, модель загружена и runtime подтвердил readiness. Docker
-`HEALTHCHECK` принадлежит образу provider и обращается к тому же UDS.
+Opaque v1 не передаёт job/domain identity, поэтому provider не хранит
+межзапросный контекст: это исключает смешивание данных разных заданий.
+Предметная область выводится только из текущего полного сегмента.
 
-## Артефакты и исполнение
+## Transport, credentials и readiness
 
-`provider.lock.json` закрепляет ровно один GGUF по имени, размеру и SHA-256,
-точную ревизию исходников `llama.cpp` с SHA-256 архива и весь inference
-profile. `execution_ref` является хешем веса и profile, проверяется при старте,
-но никогда не раскрывается Translator.
+Каждый API request идёт напрямую по HTTPS к закреплённому endpoint
+`api.openai.com/v1/responses` с системной проверкой TLS, ограниченными timeout
+и конкурентностью. API key принадлежит provider, читается из secret file
+или локального environment и не входит в image, lock, журнал или ответ.
 
-Веса скачиваются только на build stage с двух официальных mirrors, частями с
-Range validation, после чего размер и итоговый SHA-256 проверяются до
-публикации. Runtime image не выполняет сетевую загрузку, запускается не от
-root, содержит read-only lock/weights и слушает только UDS; дочерний
-`llama-server` слушает loopback внутри того же контейнера.
+`GET /healthz` проверяет локальную готовность process/config/credential без
+billable upstream-запроса. Это не доказывает квоту, доступ к модели или
+успешный перевод. Их доказывает только bounded
+live smoke. Docker healthcheck обращается к тому же UDS.
 
-Одновременно исполняется один запрос. FIFO-ожидание ограничено общим deadline.
-Cache ограничен 2 048 ключами и является недолговечным ускорением, а не
-источником истины. Перезапуск может потерять cache без потери принятого
-задания: durable retry остаётся обязанностью Translator.
+## Исполнение, cache и release admission
 
-## Качество и совместимость
+Одновременно исполняется один запрос; FIFO-ожидание ограничено общим
+deadline. Cache ограничен 2 048 ключами, включает execution reference и не
+является источником истины. Тексты и переводы не журналируются.
 
-Поддерживаемый language inventory закреплён кодом provider. Ответ всегда
-помечается `MACHINE_TRANSLATION_UNVERIFIED`; дословно неизменившийся результат
-дополнительно получает `UNCHANGED_OUTPUT`. Транспортный успех не является
-утверждением смысловой точности.
+Каждый ответ помечается `MACHINE_TRANSLATION_UNVERIFIED`; неизменившийся
+текст дополнительно получает `UNCHANGED_OUTPUT`.
 
-Замена модели, runtime или profile требует нового provider release, полного
-quality evidence и нового image digest. Она не должна требовать изменения
-opaque contract или Translator. Несовместимое изменение порта требует новой
-major schema version и совместного migration plan.
-
-## Release admission
-
-Releasable image строится только CI из чистого commit, получает SBOM,
-provenance и keyless signature. В production допускается exact digest после:
-
-1. unit/type/lint и Docker test target;
-2. успешной полной runtime build с проверкой весов;
-3. contract round-trip с Translator worker;
-4. bounded quality smoke на утверждённом corpus;
-5. проверки подписи и attestations;
-6. clean-room функционального gate Platform Infrastructure.
-
-Tag, успешная локальная сборка или healthcheck сами по себе admission не дают.
-Image digest является platform-specific, пока release явно не собрал и не
-проверил multi-platform manifest. Архитектура release runner должна совпадать
-с целевой площадкой; неподтверждённая архитектура не считается поддерживаемой.
+Release допускается только по exact image digest с SBOM, provenance и
+signature после source/type/lint, Docker test target, opaque UDS round-trip,
+bounded quality smoke exact model, проверки подписи и clean-room
+gate Platform Infrastructure. Локальные тесты без key не дают production
+admission.

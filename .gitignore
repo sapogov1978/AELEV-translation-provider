@@ -1,12 +1,11 @@
 .DS_Store
 .env
+.env.local
 .venv/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 __pycache__/
 *.py[cod]
-*.gguf
-*.partial
 dist/
 build/

@@ -1,18 +1,15 @@
-"""Opaque contract, artifact integrity and bounded provider behavior."""
+"""Opaque contract and bounded remote-provider behavior."""
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
 import threading
 import time
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -25,96 +22,133 @@ from aelev_translation_provider.contract import (
     parse_request,
     serialize_success,
 )
-from aelev_translation_provider.languages import LANGUAGES, language_name
+from aelev_translation_provider.languages import language_name
 
 ROOT = Path(__file__).resolve().parents[1]
+PROMPTS = ROOT / "prompts"
 
 
-def settings(tmp_path: Path | None = None) -> engine.Settings:
+def settings(api_key: str = "fixture-openai-key-not-secret") -> engine.Settings:
     lock_path = ROOT / "provider.lock.json"
-    reference, artifacts = engine.read_provider_lock(lock_path)
     return engine.Settings(
-        model_root=tmp_path or Path("/model"),
         lock_path=lock_path,
+        prompt_root=PROMPTS,
         socket_path=Path("/socket"),
-        runtime_path=Path("/runtime"),
-        execution_ref=reference,
-        artifacts=artifacts,
+        profile=engine.read_provider_lock(lock_path, PROMPTS),
+        api_key=api_key,
     )
 
 
-def test_lock_and_docker_recipe_pin_the_same_release() -> None:
+def openai_response(translated: str = "Hallo") -> dict[str, object]:
+    return {
+        "status": "completed",
+        "model": "gpt-6.1-sol",
+        "output": [
+            {"type": "reasoning", "id": "rs_fixture", "summary": []},
+            {
+                "type": "message",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": json.dumps(
+                            {"translated_text": translated}, ensure_ascii=False
+                        ),
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def api_response(translated: str = "Hallo") -> httpx.Response:
+    return httpx.Response(200, json=openai_response(translated))
+
+
+def test_lock_prompt_and_docker_pin_remote_profile() -> None:
     lock = json.loads((ROOT / "provider.lock.json").read_text())
     recipe = (ROOT / "Dockerfile").read_text()
-    reference, artifacts = engine.read_provider_lock(ROOT / "provider.lock.json")
-    assert lock["declared_language_count"] == len(LANGUAGES) == 150
-    assert lock["runtime"]["source_sha256"] in recipe
-    assert lock["runtime"]["revision"] in recipe
-    assert reference == lock["execution_ref"]
-    assert set(artifacts) == {engine.MODEL_FILE}
-    assert "translator_service" not in recipe
-    assert "Index-Translate-Apache-2.0.txt" in recipe
-    assert "llama.cpp-MIT.txt" in recipe
+    profile = engine.read_provider_lock(ROOT / "provider.lock.json", PROMPTS)
+    assert profile.model == lock["api"]["model"] == "gpt-6.1-sol"
+    assert profile.endpoint == "https://api.openai.com/v1/responses"
+    assert profile.execution_ref == lock["execution_ref"]
+    assert lock["api"]["store"] is False
+    assert "llama.cpp" not in recipe
+    assert ".gguf" not in recipe
+    assert "download-model" not in recipe
+    assert "OPENAI_API_KEY=" not in recipe
+    assert "verify-config" in recipe
 
 
 @pytest.mark.parametrize(
     "mutation",
-    ["status", "path", "sha256", "size", "ref", "thinking", "context", "files"],
+    ["status", "provider", "endpoint", "model", "store", "prompt", "transport", "ref"],
 )
 def test_bad_lock_fails_closed(tmp_path: Path, mutation: str) -> None:
     lock = json.loads((ROOT / "provider.lock.json").read_text())
     if mutation == "status":
         lock["status"] = "CANDIDATE"
-    elif mutation in {"path", "sha256", "size"}:
-        lock["files"][0][mutation] = {
-            "path": "../other.gguf",
-            "sha256": "g" * 64,
-            "size": True,
-        }[mutation]
-    elif mutation == "ref":
-        lock["execution_ref"] = "other"
-    elif mutation == "thinking":
-        lock["runtime"]["enable_thinking"] = True
-    elif mutation == "context":
-        lock["runtime"]["context_size"] = 1024
+    elif mutation == "provider":
+        lock["provider"] = "other"
+    elif mutation == "endpoint":
+        lock["api"]["endpoint"] = "https://example.invalid/v1/responses"
+    elif mutation == "model":
+        lock["api"]["model"] = "other"
+    elif mutation == "store":
+        lock["api"]["store"] = True
+    elif mutation == "prompt":
+        lock["api"]["prompt_sha256"] = "0" * 64
+    elif mutation == "transport":
+        lock["transport"]["mode"] = "public-egress-gateway-v1"
     else:
-        lock["files"] *= 2
+        lock["execution_ref"] = "other"
     path = tmp_path / "lock.json"
     path.write_text(json.dumps(lock))
     with pytest.raises(RuntimeError):
-        engine.read_provider_lock(path)
+        engine.read_provider_lock(path, PROMPTS)
 
 
-def test_artifact_requires_exact_regular_file(tmp_path: Path) -> None:
-    content = b"verified fixture"
-    lock = json.loads((ROOT / "provider.lock.json").read_text())
-    lock["files"][0].update(
-        sha256=hashlib.sha256(content).hexdigest(), size=len(content)
+def test_prompt_digest_detects_changed_prompt(tmp_path: Path) -> None:
+    prompt_root = tmp_path / "prompts"
+    prompt_root.mkdir()
+    prompt = prompt_root / "domain-preserving-translation-v1.txt"
+    prompt.write_text("changed")
+    with pytest.raises(RuntimeError, match="PROMPT_DIGEST"):
+        engine.read_provider_lock(ROOT / "provider.lock.json", prompt_root)
+
+
+def test_placeholder_key_is_never_accepted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    environment = {
+        "AELEV_TRANSLATION_PROVIDER_LOCK_PATH": str(ROOT / "provider.lock.json"),
+        "AELEV_TRANSLATION_PROVIDER_PROMPT_ROOT": str(PROMPTS),
+        "AELEV_TRANSLATION_PROVIDER_SOCKET_PATH": str(tmp_path / "provider.sock"),
+        "OPENAI_API_KEY_FILE": "",
+        "OPENAI_API_KEY": "REPLACE_WITH_OPENAI_API_KEY",
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises(RuntimeError, match="CREDENTIAL_UNREADABLE"):
+        engine.Settings.from_environment()
+    assert "fixture-openai-key-not-secret" not in repr(settings())
+
+
+def test_ignored_dotenv_file_supplies_runtime_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    credential = tmp_path / "credential.env"
+    credential.write_text("OPENAI_API_KEY=fixture-openai-key-not-secret\n")
+    monkeypatch.setenv(
+        "AELEV_TRANSLATION_PROVIDER_LOCK_PATH", str(ROOT / "provider.lock.json")
     )
-    lock["execution_ref"] = engine.execution_reference(
-        lock["files"][0]["sha256"], lock["runtime"]
+    monkeypatch.setenv("AELEV_TRANSLATION_PROVIDER_PROMPT_ROOT", str(PROMPTS))
+    monkeypatch.setenv(
+        "AELEV_TRANSLATION_PROVIDER_SOCKET_PATH", str(tmp_path / "provider.sock")
     )
-    path = tmp_path / "lock.json"
-    path.write_text(json.dumps(lock))
-    reference, artifacts = engine.read_provider_lock(path)
-    configured = engine.Settings(
-        tmp_path,
-        path,
-        Path("/socket"),
-        Path("/runtime"),
-        reference,
-        artifacts,
-    )
-    artifact = tmp_path / engine.MODEL_FILE
-    artifact.write_bytes(content)
-    engine.verify_model_artifacts(configured)
-    artifact.write_bytes(b"x" * len(content))
-    with pytest.raises(RuntimeError, match="DIGEST"):
-        engine.verify_model_artifacts(configured)
-    artifact.unlink()
-    artifact.symlink_to(path)
-    with pytest.raises(RuntimeError, match="SIZE"):
-        engine.verify_model_artifacts(configured)
+    monkeypatch.setenv("OPENAI_API_KEY_FILE", str(credential))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert engine.Settings.from_environment().api_key == "fixture-openai-key-not-secret"
 
 
 @pytest.mark.parametrize(
@@ -170,16 +204,87 @@ def test_contract_schema_and_serializer_are_exact() -> None:
         "translated_text": "Hallo",
         "warnings": ["MACHINE_TRANSLATION_UNVERIFIED"],
     }
-    with pytest.raises(RuntimeError, match="PROVIDER_RESPONSE_INVALID"):
-        serialize_success("", [])
-    with pytest.raises(RuntimeError, match="PROVIDER_RESPONSE_INVALID"):
-        serialize_success("valid", ["duplicate", "duplicate"])
 
 
 def test_language_inventory_rejects_unknown_values() -> None:
-    assert language_name("en", source=True) == "英语"
+    assert language_name("en", source=True) == "English"
     with pytest.raises(ProviderRequestError, match="UNSUPPORTED_TARGET"):
         language_name("xx")
+
+
+def test_remote_request_preserves_domain_context_and_uses_api() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://api.openai.com/v1/responses"
+        requests.append(request)
+        assert (
+            request.headers["Authorization"] == "Bearer fixture-openai-key-not-secret"
+        )
+        api = json.loads(request.content)
+        assert api["model"] == "gpt-6.1-sol"
+        assert api["store"] is False
+        assert api["reasoning"] == {"effort": "medium"}
+        assert api["text"]["format"]["type"] == "json_schema"
+        assert "infer the subject domain" in api["instructions"]
+        model_input = json.loads(api["input"][0]["content"][0]["text"])
+        assert model_input == {
+            "source_language": {"code": "en", "name": "English"},
+            "target_language": {"code": "de", "name": "German"},
+            "source_text": "The kinase assay uses a 5 µM ATP concentration.",
+        }
+        return api_response("Der Kinase-Assay verwendet 5 µM ATP.")
+
+    provider = engine.TranslationEngine(
+        settings(), transport=httpx.MockTransport(respond)
+    )
+    try:
+        expected = (
+            "Der Kinase-Assay verwendet 5 µM ATP.",
+            ["MACHINE_TRANSLATION_UNVERIFIED"],
+        )
+        assert (
+            provider.translate(
+                "The kinase assay uses a 5 µM ATP concentration.", "en", "de"
+            )
+            == expected
+        )
+        assert (
+            provider.translate(
+                "The kinase assay uses a 5 µM ATP concentration.", "en", "de"
+            )
+            == expected
+        )
+        assert len(requests) == 1
+    finally:
+        provider.close()
+
+
+def test_api_rejection_is_bounded_provider_failure() -> None:
+    def reject(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"code": "invalid_api_key"}})
+
+    provider = engine.TranslationEngine(
+        settings(), transport=httpx.MockTransport(reject)
+    )
+    try:
+        with pytest.raises(engine.ProviderUnavailable, match="RUNTIME_UNAVAILABLE"):
+            provider.translate("Hello", "en", "de")
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("translated", ["", "<think>secret"])
+def test_invalid_model_output_is_bounded(translated: str) -> None:
+    provider = engine.TranslationEngine(
+        settings(),
+        transport=httpx.MockTransport(lambda _: api_response(translated)),
+    )
+    try:
+        with pytest.raises(ProviderRequestError):
+            provider.translate("Hello", "en", "de")
+    finally:
+        provider.close()
 
 
 class FakeEngine:
@@ -221,10 +326,11 @@ def test_http_response_discloses_no_implementation_identity() -> None:
         "translated_text": "Hallo",
         "warnings": ["MACHINE_TRANSLATION_UNVERIFIED"],
     }
-    assert asyncio.run(asgi_request(app, "GET", "/healthz")).json() == {"status": "ok"}
+    assert "openai" not in response.text.casefold()
+    assert "gpt" not in response.text.casefold()
 
 
-def test_health_is_provider_runtime_readiness() -> None:
+def test_health_is_local_provider_readiness() -> None:
     unavailable = cast(Any, FakeEngine())
     unavailable.ready = False
     response = asyncio.run(asgi_request(create_app(unavailable), "GET", "/healthz"))
@@ -266,50 +372,3 @@ def test_real_unix_socket_round_trip() -> None:
         thread.join(timeout=5)
         socket_path.unlink(missing_ok=True)
         assert not thread.is_alive()
-
-
-def test_control_tokens_and_empty_output_are_bounded_request_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    configured = settings()
-
-    def no_verify(_: engine.Settings) -> None:
-        pass
-
-    def no_start(
-        _: engine.TranslationEngine, timeout_seconds: float | None = None
-    ) -> None:
-        del timeout_seconds
-
-    monkeypatch.setattr(engine, "verify_model_artifacts", no_verify)
-    monkeypatch.setattr(engine.TranslationEngine, "_start_runtime", no_start)
-    provider = engine.TranslationEngine(configured)
-    provider._runtime_loaded = True  # pyright: ignore[reportPrivateUsage]
-    provider._process = cast(  # pyright: ignore[reportPrivateUsage]
-        Any, SimpleNamespace(poll=lambda: None)
-    )
-    monkeypatch.setattr(
-        provider,
-        "_post",
-        Mock(
-            side_effect=[
-                {"tokens": [1]},
-                {
-                    "choices": [
-                        {
-                            "finish_reason": "stop",
-                            "message": {"content": "<think>secret"},
-                        }
-                    ]
-                },
-                {"tokens": [1]},
-                {"choices": [{"finish_reason": "stop", "message": {"content": " "}}]},
-            ]
-        ),
-    )
-    with pytest.raises(ProviderRequestError, match="CONTROL_TOKEN"):
-        provider.translate("hello", "en", "de")
-    with pytest.raises(ProviderRequestError, match="EMPTY_OUTPUT"):
-        provider.translate("other", "en", "de")
-    provider._process = None  # pyright: ignore[reportPrivateUsage]
-    provider.close()

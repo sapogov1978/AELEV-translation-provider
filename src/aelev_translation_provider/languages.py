@@ -1,34 +1,30 @@
-"""Index inventory: arXiv:2609.40181v1, appendix C, tables 31–32.
-
-Supplier identifiers are normalized to the existing lowercase BCP-style codes.
-ISO aliases are mappings, not additional model languages or quality claims.
-"""
+"""Provider-owned language inventory with normalized BCP-style aliases."""
 
 from aelev_translation_provider.contract import ProviderRequestError
 
 _CORE = {
-    "en": "英语",
-    "zh": "中文",
-    "de": "德语",
-    "fr": "法语",
-    "es": "西班牙语",
-    "ja": "日语",
-    "ko": "韩语",
-    "pt": "葡萄牙语",
-    "ru": "俄语",
-    "ar": "阿拉伯语",
-    "it": "意大利语",
-    "nl": "荷兰语",
-    "pl": "波兰语",
-    "ro": "罗马尼亚语",
-    "sv": "瑞典语",
-    "tr": "土耳其语",
-    "hi": "印地语",
-    "vi": "越南语",
-    "th": "泰语",
-    "id": "印尼语",
-    "ms": "马来语",
-    "fil": "菲律宾语",
+    "en": "English",
+    "zh": "Chinese",
+    "de": "German",
+    "fr": "French",
+    "es": "Spanish",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "it": "Italian",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "ro": "Romanian",
+    "sv": "Swedish",
+    "tr": "Turkish",
+    "hi": "Hindi",
+    "vi": "Vietnamese",
+    "th": "Thai",
+    "id": "Indonesian",
+    "ms": "Malay",
+    "fil": "Filipino",
 }
 _ADDITIONAL = """
 ukr-cyrl|Ukrainian

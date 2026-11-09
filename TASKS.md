@@ -1,23 +1,15 @@
 # Задачи AELEV Translation Provider
 
-Исходный продукт и opaque contract готовы; общий production admission ещё не
-выдан.
+- [x] Сохранить opaque UDS v1 без model/provider identity.
+- [x] Удалить standalone-веса, downloader и `llama.cpp` из активной сборки.
+- [x] Закрепить `gpt-6.1-sol`, Responses API, prompt digest и HTTPS profile.
+- [x] Добавить domain-preserving request и strict structured response.
+- [x] Добавить offline unit/type/lint, UDS round-trip и Docker test target.
+- [x] В PlatformInfrastructure подготовить исходящую сеть provider и generic
+  read-only secret mount без раскрытия model/API identity.
+- [ ] Вручную записать действующий OpenAI API key в локальный secret file.
+- [ ] Проверить project access/quota и bounded live translation без `RESUME`.
+- [ ] Выпустить новый exact image digest с SBOM, provenance и signature.
+- [ ] Пройти quality smoke и clean-room gate с exact Translator worker digest.
 
-- [x] Сохранить Git-историю provider-specific реализации при выделении.
-- [x] Отделить Kafka, очередь, БД, operator API и consumer resources.
-- [x] Закрепить веса, runtime, profile, downloader и image healthcheck.
-- [x] Проверить source/type/lint, реальный UDS round-trip, Docker test target и
-  exact native runtime build локально и в независимом CI.
-- [x] Добавить SBOM/provenance/keyless-signature release pipeline и license
-  notices встроенных третьих компонентов.
-- [x] Выполнить release workflow на GitHub-hosted Linux x86_64 runner и получить
-  подписанный `name@sha256` artifact; evidence и точный digest сохранены в
-  [release audit](docs/audit/provider-release-20261106.md).
-- [x] Выполнить bounded real-model quality smoke для release digest: 20/20
-  утверждённых синтетических cases прошли, evidence сохранено в
-  [quality audit](docs/audit/provider-quality-20261106.md).
-- [ ] Пройти совместный clean-room gate Platform Infrastructure с точным
-  Translator worker digest.
-
-До закрытия последних трёх пунктов статус продукта: `IN_PROGRESS / BLOCKED`,
-не `PRODUCTION_READY`.
+Текущий статус: `IN_PROGRESS / BLOCKED`, не `PRODUCTION_READY`.

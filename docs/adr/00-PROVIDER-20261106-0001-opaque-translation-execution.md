@@ -1,6 +1,7 @@
 # 00-PROVIDER-20261106-0001 — Непрозрачное исполнение перевода
 
-- **Статус:** Принят
+- **Статус:** Принят; решения о standalone runtime заменены
+  [00-PROVIDER-20261109-0002](00-PROVIDER-20261109-0002-remote-domain-preserving-translation.md)
 - **Дата:** 2026-11-06
 
 ## Контекст
@@ -12,16 +13,16 @@ Translator должен устойчиво принимать и диспетч�
 
 ## Ключевые решения
 
-- Этот продукт является единственным владельцем модели, весов, runtime,
-  prompt, cache, language inventory, quality evidence и image healthcheck.
+- Этот продукт является единственным владельцем реализации, prompt,
+  cache, language inventory, quality evidence и image healthcheck.
 - Translator передаёт только текст и языки через HTTP v1 поверх private Unix
   socket и получает только перевод с ограниченными warnings или error code.
 - Model/runtime identity, версия, profile, prompt и execution reference никогда
   не пересекают этот порт.
 - Kafka topics, задания, idempotency, priority, retry journal, operator API и
   сохранённые результаты никогда не входят в provider.
-- Provider image является самодостаточным: exact weights и runtime встроены и
-  проверены; при запуске сеть для загрузки не требуется.
+- Первоначальное решение о встроенных exact weights и runtime заменено ADR-0002;
+  opaque-граница и владение реализацией сохраняются.
 - Выпуск допускается только по exact image digest с SBOM, provenance,
   signature, contract tests и quality evidence.
 
