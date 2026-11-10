@@ -31,7 +31,7 @@ COPY prompts ./prompts
 COPY provider.lock.json Dockerfile ./
 CMD ["poetry", "run", "pytest", "-q"]
 
-FROM dependencies AS runtime
+FROM python-bookworm AS runtime
 LABEL org.opencontainers.image.source="https://github.com/sapogov1978/AELEV-translation-provider" \
       io.aelev.translation-provider.contract="opaque-v1"
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -45,13 +45,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     AELEV_TRANSLATION_PROVIDER_PROMPT_ROOT=/opt/aelev/prompts \
     AELEV_TRANSLATION_PROVIDER_SOCKET_PATH=/run/aelev-translator/translator.sock \
     OPENAI_API_KEY_FILE=/run/secrets/provider/credential.env
-RUN groupadd --system --gid 10001 aelev \
+RUN apt-get purge --yes libsqlite3-0 \
+    && groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
     && install -d --owner=10001 --group=10001 /run/aelev-translator
 WORKDIR /opt/aelev
 COPY --from=dependencies /opt/aelev/.venv ./.venv
-RUN python -m pip uninstall --yes pip \
-    && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled
+RUN /usr/local/bin/python -m pip uninstall --yes pip setuptools \
+    && /opt/aelev/.venv/bin/python -m pip uninstall --yes pip setuptools \
+    && rm -rf /usr/local/lib/python3.13/ensurepip/_bundled \
+    && /usr/local/bin/python -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("poetry", "dulwich", "pip", "setuptools"))' \
+    && python -c 'import importlib.util as u; assert all(u.find_spec(n) is None for n in ("poetry", "dulwich", "pip", "setuptools"))'
 COPY --chown=10001:10001 --chmod=0444 provider.lock.json ./provider.lock.json
 COPY --chown=10001:10001 prompts ./prompts
 COPY --chown=10001:10001 src ./src

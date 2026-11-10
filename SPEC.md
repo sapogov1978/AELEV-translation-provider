@@ -47,6 +47,12 @@ Opaque v1 не передаёт job/domain identity, поэтому provider н�
 
 ## Transport, credentials и readiness
 
+Runtime сохраняет Python 3.13.7 и Debian Bookworm сборочного слоя, но получает
+только закреплённое окружение приложения. Poetry и его сборочные зависимости,
+pip и setuptools в runtime не включаются. Сборка и тесты сохраняют Poetry 2.2.1.
+Неиспользуемая библиотека SQLite дистрибутива исключается из runtime. У provider
+нет SQL-порта или устойчивой БД; кэш остаётся ограниченным и расположен в памяти.
+
 Каждый API request идёт напрямую по HTTPS к закреплённому endpoint
 `api.openai.com/v1/responses` с системной проверкой TLS, ограниченными timeout
 и конкурентностью. API key принадлежит provider, читается из secret file
