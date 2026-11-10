@@ -65,6 +65,14 @@ live smoke. Docker healthcheck обращается к тому же UDS.
 
 ## Исполнение, cache и release admission
 
+Допуск CVE привязан к [рассмотренному профилю](security/runtime-profile.json)
+и [проверяемым условиям каждой находки](docs/audit/runtime-security-20261111.md).
+Он действует для штатного opaque entrypoint с non-root, read-only root,
+нулевыми capabilities и no-new-privileges; владелец проверяет их при выкладке.
+Изменение рассмотренного кода/зависимостей или новая HIGH/CRITICAL закрывает
+допуск. Перед подписью release CI требует успешный audit точного main commit
+и проверяет опубликованный native digest, сохраняя сырой scan и решения.
+
 Одновременно исполняется один запрос; FIFO-ожидание ограничено общим
 deadline. Cache ограничен 2 048 ключами, включает execution reference и не
 является источником истины. Тексты и переводы не журналируются.

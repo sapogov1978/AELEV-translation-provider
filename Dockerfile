@@ -25,7 +25,7 @@ ENV PYTHONPATH=/opt/aelev/src \
     PATH=/opt/aelev/.venv/bin:$PATH
 COPY src ./src
 COPY test ./test
-COPY tools/release_quality_smoke.py ./tools/release_quality_smoke.py
+COPY tools ./tools
 COPY contracts ./contracts
 COPY prompts ./prompts
 COPY provider.lock.json Dockerfile ./

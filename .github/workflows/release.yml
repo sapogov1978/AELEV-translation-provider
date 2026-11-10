@@ -6,6 +6,7 @@ on:
     tags: ["v*.*.*"]
 
 permissions:
+  actions: read
   contents: read
   packages: write
   id-token: write
@@ -22,6 +23,17 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           clean: true
+      - name: Require successful source audit for the exact release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/audit.yml/runs?head_sha=$GITHUB_SHA&status=completed&per_page=20" > "$RUNNER_TEMP/source-audit-runs.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          runs = json.loads((Path(os.environ['RUNNER_TEMP']) / 'source-audit-runs.json').read_text())['workflow_runs']
+          assert any(r['head_sha'] == os.environ['GITHUB_SHA'] and r['head_branch'] == 'main' and r['event'] == 'push' and r['conclusion'] == 'success' for r in runs), 'EXACT_RELEASE_SOURCE_AUDIT_REQUIRED'
+          PY
       - name: Record hosted runner architecture and capacity
         run: |
           test "$(uname -m)" = "x86_64"
@@ -45,6 +57,27 @@ jobs:
             ghcr.io/sapogov1978/aelev-translation-provider:${{ github.sha }}
           sbom: true
           provenance: mode=max
+      - name: Scan native released image and verify scoped applicability
+        env:
+          IMAGE: ghcr.io/sapogov1978/aelev-translation-provider@${{ steps.build.outputs.digest }}
+        run: |
+          security_dir="$RUNNER_TEMP/provider-security"
+          mkdir -p "$security_dir"
+          curl --fail --silent --show-error --location --retry 3 --max-time 180 https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz --output "$security_dir/trivy.tar.gz"
+          printf '%s  %s\n' 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0' "$security_dir/trivy.tar.gz" | sha256sum --check --strict
+          tar -xzf "$security_dir/trivy.tar.gz" -C "$security_dir" trivy
+          docker pull --platform linux/amd64 "$IMAGE"
+          scan_image_id="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
+          "$security_dir/trivy" image --no-progress --image-src docker --scanners vuln --exit-code 0 --timeout 10m --format json --list-all-pkgs --output "$security_dir/vulnerabilities-amd64.json" "$scan_image_id"
+          python3 tools/runtime_surface_probe.py --image "$IMAGE" --scan "$security_dir/vulnerabilities-amd64.json" --output "$security_dir/security-amd64.json"
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        if: always()
+        with:
+          name: image-security-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/provider-security/vulnerabilities-amd64.json
+            ${{ runner.temp }}/provider-security/security-amd64.json
+          if-no-files-found: error
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
           cosign-release: v3.1.4

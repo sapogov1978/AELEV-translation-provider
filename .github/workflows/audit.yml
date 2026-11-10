@@ -26,7 +26,7 @@ jobs:
           poetry run ruff check .
           poetry run ruff format --check .
           poetry run pyright
-          poetry run pyright tools/runtime_surface_probe.py
+          poetry run pyright tools
           poetry run pytest -q
       - name: Validate Docker test target
         run: docker build --target test .

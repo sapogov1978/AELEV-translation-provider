@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "status": "PRE_RELEASE_SCOPED_SECURITY_PASS",
+  "scope": "Only the default opaque Python provider entrypoint under the verified non-root/read-only/no-capabilities/no-new-privileges profile; not arbitrary OS CLI use.",
+  "profile_sha256": "8956c19c1451ba52541a6ff8aff3b4c93ef592e01c65d0d048e816b5ea4dbe75",
+  "local_image_id": "sha256:ac7912345c0c1e40c713174eed03b8c7e182add119e6e3a29ed7ad0a68fbd143",
+  "architecture": "linux/arm64",
+  "raw_severity_counts": {
+    "CRITICAL": 1,
+    "HIGH": 35,
+    "LOW": 88,
+    "MEDIUM": 96,
+    "UNKNOWN": 10
+  },
+  "unresolved_high_critical_package_findings": 0,
+  "findings": [
+    {
+      "id": "CVE-2026-53613",
+      "package": "bsdutils",
+      "installed_version": "1:2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "bsdutils",
+      "installed_version": "1:2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "bsdutils",
+      "installed_version": "1:2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2026-41992",
+      "package": "gzip",
+      "installed_version": "1.12-1",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected GNU gzip LZW/LZH CLI is never executed by this provider. Application source is reviewed and excludes process invocation.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-41992"
+    },
+    {
+      "id": "CVE-2026-54369",
+      "package": "libacl1",
+      "installed_version": "2.3.1-3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "No privileged ACL caller; libacl is not loaded and application/native imports contain no affected ACL or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-54369"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "libblkid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "libblkid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "libblkid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "libmount1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "libmount1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "libmount1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2025-69720",
+      "package": "libncursesw6",
+      "installed_version": "6.4-4",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected infocmp CLI analyze_string path is never executed by the provider.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2025-69720"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "libsmartcols1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "libsmartcols1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "libsmartcols1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2026-16742",
+      "package": "libsystemd0",
+      "installed_version": "252.39-1~deb12u2",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_present",
+      "reason": "The affected systemd-homed executable is absent.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-16742"
+    },
+    {
+      "id": "CVE-2025-69720",
+      "package": "libtinfo6",
+      "installed_version": "6.4-4",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected infocmp CLI analyze_string path is never executed by the provider.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2025-69720"
+    },
+    {
+      "id": "CVE-2026-16742",
+      "package": "libudev1",
+      "installed_version": "252.39-1~deb12u2",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_present",
+      "reason": "The affected systemd-homed executable is absent.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-16742"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "libuuid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "libuuid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "libuuid1",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "mount",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "mount",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "mount",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2025-69720",
+      "package": "ncurses-base",
+      "installed_version": "6.4-4",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected infocmp CLI analyze_string path is never executed by the provider.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2025-69720"
+    },
+    {
+      "id": "CVE-2025-69720",
+      "package": "ncurses-bin",
+      "installed_version": "6.4-4",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected infocmp CLI analyze_string path is never executed by the provider.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2025-69720"
+    },
+    {
+      "id": "CVE-2026-9538",
+      "package": "perl-base",
+      "installed_version": "5.36.0-7+deb12u4",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_present",
+      "reason": "The affected Perl Archive::Tar module is absent from the image.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-9538"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "util-linux",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "util-linux",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "util-linux",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2026-53613",
+      "package": "util-linux-extra",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab mount entries; UID 10001, zero effective capabilities, no-new-privileges, read-only root and no application child-process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53613"
+    },
+    {
+      "id": "CVE-2026-53615",
+      "package": "util-linux-extra",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "Provider processes no block-device metadata; libblkid is not loaded, application/native imports contain no blkid path or dynamic native/process APIs.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-53615"
+    },
+    {
+      "id": "CVE-2026-78410",
+      "package": "util-linux-extra",
+      "installed_version": "2.38.1-5+deb12u3",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "protected_by_mitigating_control",
+      "reason": "No fstab bind-mount entries or privileged mount path under the verified profile.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-78410"
+    },
+    {
+      "id": "CVE-2023-45853",
+      "package": "zlib1g",
+      "installed_version": "1:1.2.13.dfsg-1",
+      "severity": "CRITICAL",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_present",
+      "reason": "MiniZip, pyminizip and the vulnerable MiniZip export are absent.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2023-45853"
+    },
+    {
+      "id": "CVE-2026-76844",
+      "package": "zlib1g",
+      "installed_version": "1:1.2.13.dfsg-1",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The provider does not call the affected gz* file-write API. Reviewed application sources exclude dynamic native/process APIs and native imports contain no gzopen/gzdopen/gzwrite/gzprintf/gzvprintf/gzclearerr.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-76844"
+    },
+    {
+      "id": "CVE-2026-85091",
+      "package": "zlib1g",
+      "installed_version": "1:1.2.13.dfsg-1",
+      "severity": "HIGH",
+      "status": "NOT_AFFECTED_IN_PROFILE",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "reason": "The affected gz* file-write API has no provider execution path, regardless of the upstream/table affected-version discrepancy.",
+      "primary_source": "https://security-tracker.debian.org/tracker/CVE-2026-85091"
+    }
+  ],
+  "evidence_files_sha256": {
+    "/var/tmp/aelev-production-admission.wDuzQd/translation-runtime-minimal/security-arm64/vulnerabilities.json": "66aac9d44cb49cd725b60d6976dfdad35267d3df6a1d008cc893aaa92667c3a1",
+    "/var/tmp/aelev-production-admission.wDuzQd/translation-runtime-minimal/scoped-security-reviewed-v1.json": "73215dca2e32c3e4b8fbe1300e08fe4eaf285cba7a76c5689405eeac70651e9c"
+  },
+  "proof_fields": [
+    "exact reviewed application sources and dependency versions",
+    "both Python interpreters and application engine definitions imported without initialization",
+    "ELF native undefined-symbol review",
+    "non-root, read-only root, no-new-privileges, no effective capabilities, empty fstab"
+  ],
+  "not_yet_proven": [
+    "signed final release digest",
+    "final amd64 and arm64 vulnerability evidence",
+    "final exact-image quality",
+    "deployed owner runtime profile and E2E"
+  ]
+}

@@ -1,7 +1,7 @@
 # Задачи AELEV Translation Provider
 
 - [ ] Закрыть допуск уязвимостей точного образа после удаления сборочных
-  инструментов: [текущее доказательство](docs/audit/runtime-security-20261110.md)
+  инструментов: [рассмотренный профиль](docs/audit/runtime-security-20261111.md)
   отделяет устранённые находки, проверенную неприменимость и открытые CVE.
 - [x] Сохранить opaque UDS v1 без model/provider identity.
 - [x] Удалить standalone-веса, downloader и `llama.cpp` из активной сборки.
