@@ -15,7 +15,7 @@
 
 20-case provider quality smoke и проверка смысла прошли для точного OpenAI
 image 2026-11-10; доказательства —
-[provider-quality-20261110.md](docs/audit/provider-quality-20261110.md).
+[provider-release-v0.1.0-20261110.md](docs/audit/provider-release-v0.1.0-20261110.md).
 Совместный clean-room остаётся отдельным инфраструктурным gate.
 
 Текущий статус: `PROVIDER_QUALITY_PASS / PLATFORM_CLEAN_ROOM_PENDING`.

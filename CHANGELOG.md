@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Bound the tagged `v0.1.0` image to its own 20/20 UDS smoke, reviewed raw
+  translations and tag-identity signature, SBOM and provenance receipts;
+  retained the earlier image's quality report as separate historical evidence.
+- Repaired the historical standalone quality report's alternates link to its
+  immutable source commit after retirement of the active standalone artifact.
 - Recorded the 2026-11-10 exact OpenAI image UDS quality evaluation: 20/20
   contract/literal checks and explicit semantic review; platform clean-room
   admission remains separate.

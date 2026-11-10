@@ -21,7 +21,7 @@
 
 Eighteen responses matched the historical baseline byte-for-byte. Two matched
 only the exact release-specific alternatives in
-[`quality/approved-alternates.json`](../../quality/approved-alternates.json):
+[`quality/approved-alternates.json` at the evaluated historical commit](https://github.com/sapogov1978/AELEV-translation-provider/blob/5548e494006438a46c561a8845f49fb7ac847efb/quality/approved-alternates.json):
 `en-zh` used an equivalent modal verb for recoverability and `ru-en-context`
 added `any` under the same explicit negation. Both preserved every stated
 condition; their rationales are part of the digest-bound reviewed file.

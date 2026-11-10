@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "status": "PROVIDER_QUALITY_PASS",
+  "release_tag": "v0.1.0",
+  "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:e1c7ea57dadaa322bd91104a0908f7edcd371552aab776e9469714b4b670641c",
+  "artifact_source_commit": "2e90c2f62de4bcc5be78f37413b5a8c9cc097285",
+  "live_architecture": "linux/arm64",
+  "corpus_sha256": "48947913efd9236e38fd79dbfb60b48198fdd9ab0ce1483fc003485619d92b6e",
+  "case_count": 20,
+  "automated_checks": "PASS",
+  "semantic_review": {
+    "status": "PASS",
+    "reviewer": "Codex",
+    "case_ids": [
+      "central-bank-term",
+      "central-bank-sentence",
+      "en-ru-negation",
+      "ru-en-negation",
+      "en-ru-numbers",
+      "ru-en-numbers",
+      "en-ru-uncertainty",
+      "ru-en-ambiguity",
+      "de-en-negation",
+      "en-de-technical",
+      "fr-en",
+      "es-ru",
+      "zh-en",
+      "en-zh",
+      "en-ru-identifier",
+      "en-ru-placeholder",
+      "ru-en-list",
+      "en-ru-context",
+      "ru-en-context",
+      "en-ru-newlines"
+    ],
+    "scope": "All 20 supplied source/translation pairs against corpus meanings; preserves negation, uncertainty, context, entities, numbers, identifiers, placeholders, order and line breaks; not an independent language benchmark"
+  },
+  "evidence_sha256": {
+    "quality.json": "1b5d6399b9440fa6359ead8402b3dec38c258c6491a616fc8a40dfdbf66ef8bf",
+    "raw.json": "a7d2c02e67387b9205e04085b201b2d9d801de87738136e90ea2ff98be6bbf65",
+    "runtime.json": "8fa99c83b64b576f7ddda918f2e0d0c1d8031796b9fdb183fec556e4ba79ba6c",
+    "signature.json": "a461e8d0949c89a84fae9a692f81e9b2727b5786062d8f4005db020045f5646d",
+    "provenance.json": "262f2583bc85ac8c5e47b3f16b3ba4ff59782e7a994954dfee0da67206d6f361",
+    "sbom.json": "0ba83ad8401cc0c87047a70d54f301c4e7b2c05f5597d6e39050f6298455a154"
+  },
+  "supply_chain": {
+    "audit_run": 42839546330,
+    "release_run": 42840698695,
+    "signature_issuer": "https://token.actions.githubusercontent.com",
+    "signature_identity": "https://github.com/sapogov1978/AELEV-translation-provider/.github/workflows/release.yml@refs/tags/v0.1.0",
+    "attested_platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "sbom": "SPDX",
+    "provenance": "SLSA"
+  },
+  "production_admission": "PENDING_PLATFORM_CLEAN_ROOM",
+  "queue_resume_issued": false,
+  "raw_evidence_path": "/var/tmp/aelev-production-admission.wDuzQd/translation-v010/raw.json"
+}
