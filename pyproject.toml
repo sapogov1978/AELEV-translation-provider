@@ -35,7 +35,7 @@ exclude = ["docs/audit"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pyright]
-include = ["src", "test"]
+include = ["src", "test", "tools/release_quality_smoke.py"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false

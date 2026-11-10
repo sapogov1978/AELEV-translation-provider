@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "status": "PROVIDER_QUALITY_PASS",
+  "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:0a09783d072ccc7c60ec8e6fbe5ce56def95a56601888d5c3e4cf083da3ee016",
+  "artifact_source_commit": "f0c538767809bf7e7ddd52a9b4760d442ea6cad2",
+  "live_architecture": "linux/arm64",
+  "started_at": "2026-11-10T14:47:34.985733+00:00",
+  "finished_at": "2026-11-10T14:48:26.903261+00:00",
+  "corpus_sha256": "48947913efd9236e38fd79dbfb60b48198fdd9ab0ce1483fc003485619d92b6e",
+  "raw_evidence_sha256": "38e9ab1151a52a160a7575866bbb33e82a3ba7ab2306edae98dea99544ca1398",
+  "case_count": 20,
+  "semantic_review": {
+    "status": "PASS",
+    "reviewer": "Codex",
+    "scope": "All 20 supplied source/translation pairs against corpus meaning and literal checks; not an independent language benchmark"
+  },
+  "production_admission": "PENDING_PLATFORM_CLEAN_ROOM",
+  "queue_resume_issued": false,
+  "results": [
+    {
+      "case_id": "central-bank-term",
+      "http_status": 200,
+      "output_sha256": "891e7cac6d2469c72b90ba3f43415f1d89b50c1b3450b99abf4f753a6efa9c8d",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 5.112,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "central-bank-sentence",
+      "http_status": 200,
+      "output_sha256": "763527f91bbc902f6a905644004d080b47ed6c1e9ca2a4aeb46abf37347428b5",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.194,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-negation",
+      "http_status": 200,
+      "output_sha256": "071f68b4aea7b737a5df5ab7642000efe1dab655c07c507f58c8b3fcd07af5c7",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 4.815,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "ru-en-negation",
+      "http_status": 200,
+      "output_sha256": "8fae750fccd5bc7bfe24abd9cc5fccd5db829d11a6442cff8cca1800215cf881",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.725,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-numbers",
+      "http_status": 200,
+      "output_sha256": "b64cdeb75276a72c3e887af4346f8d8034d19ce61f9f0b32737ae12f41af3f70",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 1.981,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "ru-en-numbers",
+      "http_status": 200,
+      "output_sha256": "384cbff4f4e66ddbf6a82806ccbdce9364adea6a61338d9dcbb33355ae3edec6",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.337,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-uncertainty",
+      "http_status": 200,
+      "output_sha256": "28accd1d7396ddffb56ea10acbe2a6cbe9c4782dc6331c45ddb7db3ed10bfe3e",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 3.182,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "ru-en-ambiguity",
+      "http_status": 200,
+      "output_sha256": "cc06607a523f1f8df9e27c030abb34a41ed57c9945d12488b581391a12ebc0ed",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 1.925,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "de-en-negation",
+      "http_status": 200,
+      "output_sha256": "81d32c5230232c4217d604e08a25964b8694c5e2b55acc242d3f8c7c6dc372ba",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.22,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-de-technical",
+      "http_status": 200,
+      "output_sha256": "13c6811c9b0b96f6f82e8fabf4d1e60abc09a3782fb7f1a06da9a640ef075dcb",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.257,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "fr-en",
+      "http_status": 200,
+      "output_sha256": "816397cdfebd01f0bacf1562b6b152372b071fbf3ed92a59e392e4835fecf9b9",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.29,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "es-ru",
+      "http_status": 200,
+      "output_sha256": "912f42ee3535679528f42cc329cec8446abe1d0b7be196c8a297055d0d05a6d4",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.362,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "zh-en",
+      "http_status": 200,
+      "output_sha256": "a0ffb863c400dcb8ed9512169bbf68a36a35971df3d0df2c72517895490083de",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.282,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-zh",
+      "http_status": 200,
+      "output_sha256": "1c2eb498094192f8047bef22e8d8abb88f963df11aa147c9a765b91c5fc2349b",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.661,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-identifier",
+      "http_status": 200,
+      "output_sha256": "ac82f556a159f6b5e72608e5da6db654dd018990c5350a155feb192f1dcadc89",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 3.385,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-placeholder",
+      "http_status": 200,
+      "output_sha256": "393b8a7ee3f8fa2244756c48bd946b6853880ac65056a636c5ca1cccab729b09",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.129,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "ru-en-list",
+      "http_status": 200,
+      "output_sha256": "7f49dc21f87ff481b99e352d1fc69237dbd5a4a0301a3d9bd6153ee395c68011",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 1.991,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-context",
+      "http_status": 200,
+      "output_sha256": "e0a83e424b9f9a1e304032374068f7057b9dcb98564fd76dd83cd2767e64bed0",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 2.556,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "ru-en-context",
+      "http_status": 200,
+      "output_sha256": "14a0d2e86a27221f5af1832b8cbd632fdb0ef736f527f6a7bf3999c14a0b7ff0",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 1.944,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    },
+    {
+      "case_id": "en-ru-newlines",
+      "http_status": 200,
+      "output_sha256": "a6b0ac31ddddd449c13f270398bd377419aee7fdcbbf77c9e3ec8d5aa11469e9",
+      "warnings": [
+        "MACHINE_TRANSLATION_UNVERIFIED"
+      ],
+      "elapsed_seconds": 1.517,
+      "literal_checks": "PASS",
+      "semantic_review": "PASS"
+    }
+  ]
+}

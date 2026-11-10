@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Recorded the 2026-11-10 exact OpenAI image UDS quality evaluation: 20/20
+  contract/literal checks and explicit semantic review; platform clean-room
+  admission remains separate.
+- Quality smoke requires an immutable image reference, persists partial/failure
+  evidence, and optionally records the repository corpus opaque exchanges for
+  semantic review without provider credentials or upstream headers.
 - Provider release publishes one signed multi-platform index for
   `linux/amd64` and `linux/arm64`, so the immutable digest is directly runnable
   on hosted Linux and Apple Silicon Docker without emulation.
