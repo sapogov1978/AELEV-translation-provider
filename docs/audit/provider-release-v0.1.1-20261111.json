@@ -1,0 +1,243 @@
+{
+  "schema_version": 2,
+  "status": "COMPONENT_RELEASE_VERIFIED",
+  "recorded_at": "2026-11-11T00:11:29.052450+00:00",
+  "release_tag": "v0.1.1",
+  "owner": "translation",
+  "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:97d7604113008b93781061a0bbba2404bcd7769b864e3ade268b71a483e4f70a",
+  "artifact_source_commit": "185c5a7b5ad7bdce24a6f5dc5dba18f1eeaa62d1",
+  "live_architecture": "linux/arm64",
+  "corpus_sha256": "48947913efd9236e38fd79dbfb60b48198fdd9ab0ce1483fc003485619d92b6e",
+  "case_count": 20,
+  "automated_checks": "PASS",
+  "semantic_reviewer": "Codex",
+  "quality_scope": "Twenty repository-owned synthetic translation segments; all actual source/output pairs reviewed separately against expected meanings. Not an independent linguistic benchmark or all-language admission.",
+  "cases": [
+    {
+      "id": "central-bank-term",
+      "request_sha256": "1fc3220460835e86039d3e10502b09e8e0dda0cf788216e85c2326f6ff48a12e",
+      "response_sha256": "7d1249987ffd95ac5c22718be7761e6f04179ce13248c8c4e740b249b984c061",
+      "elapsed_seconds": 2.271,
+      "semantic_review": "PASS: Institutional term preserved without adding a country."
+    },
+    {
+      "id": "central-bank-sentence",
+      "request_sha256": "11d1e4042f6093726df7dcf9892bd463934bdf4432cd4fe1739a56f9f5cc0208",
+      "response_sha256": "3a2a56cba31fb26a2b80b28af82132a7ea6cb61a2db472de047816cc57db490b",
+      "elapsed_seconds": 2.62,
+      "semantic_review": "PASS: German negation and the absence of a specified country preserved."
+    },
+    {
+      "id": "en-ru-negation",
+      "request_sha256": "3188d554decda6f6223d9fe826c862dee06a73f6c3e0717e51bc2fa49383c151",
+      "response_sha256": "7795db6fac1a49399adf5f9b837c264e927e2c87a409055dc9a48d6647407d78",
+      "elapsed_seconds": 1.59,
+      "semantic_review": "PASS: Prohibition on deleting the original preserved."
+    },
+    {
+      "id": "ru-en-negation",
+      "request_sha256": "9c8a7b1a3c68412b3ff8150ab74e4914dedd26e65faeaa32a32c7332122ce35c",
+      "response_sha256": "5c386169de512eaf671ea5dd67bcff123d49694cd54754164fd53cafc9a8328b",
+      "elapsed_seconds": 1.906,
+      "semantic_review": "PASS: Unconfirmed payment and prohibition on repeating transfer before reconciliation preserved."
+    },
+    {
+      "id": "en-ru-numbers",
+      "request_sha256": "6773a224db5b0617651bf69655725c516b1f48d4e09fbb40ccc3ffd0a547aef4",
+      "response_sha256": "1a3851c08f1be73560eac2aee840c065db1d4f15ce1acdb2f77ea992b8512fd1",
+      "elapsed_seconds": 1.962,
+      "semantic_review": "PASS: Date, accepted and rejected counts, and total mass preserved."
+    },
+    {
+      "id": "ru-en-numbers",
+      "request_sha256": "17b606d80befee6d137b12e976034c7673be59af20e07da4a8d2c62f183b436e",
+      "response_sha256": "10439fda898f282794cfd2f49fe212550c85b2df9005dca51d7523495d41633b",
+      "elapsed_seconds": 1.51,
+      "semantic_review": "PASS: Direction of temperature change, duration and both sample identifiers preserved."
+    },
+    {
+      "id": "en-ru-uncertainty",
+      "request_sha256": "bb4df5af13464053547e21f3ea9d86d9a24c22ffca7abe5530e23cf87222d689",
+      "response_sha256": "73787c2ffd7291d0fa8f7fa3e3f7b8c93b98636c92138929add446cdbd7cdb16",
+      "elapsed_seconds": 2.094,
+      "semantic_review": "PASS: Tentative demand decline and unestablished cause remain uncertain."
+    },
+    {
+      "id": "ru-en-ambiguity",
+      "request_sha256": "141af3021b87a95a7efe8cb89b1fa359e0fcafbbf4bc5037b16ad14e4a84f3da",
+      "response_sha256": "112d6371b6faf1930086d99af74f80fd52003293caf768ba3838c038d914de61",
+      "elapsed_seconds": 1.721,
+      "semantic_review": "PASS: Door lock and hill castle are disambiguated from sentence context."
+    },
+    {
+      "id": "de-en-negation",
+      "request_sha256": "52b60058cdad5f1fe3d0252f312d45ed4ed1c377e2e7f8a3723dc974510073de",
+      "response_sha256": "5c2f5eb9b144ef8cbc0f3e7aac671f088fdc87de904f69b1856c5ab9b3e3dc5f",
+      "elapsed_seconds": 1.816,
+      "semantic_review": "PASS: Delivery is not cancelled and release remains conditional on security check."
+    },
+    {
+      "id": "en-de-technical",
+      "request_sha256": "2465c41f5799eab81f02bad37786692cd8c673e4d49dbf56a62b81d761abebd5",
+      "response_sha256": "caf2e660374f7d27ed0fa9af2c0f931b5a46732ff33eee1b4e2a53032973745e",
+      "elapsed_seconds": 2.05,
+      "semantic_review": "PASS: Database readiness precedes worker restart; request_id preserved."
+    },
+    {
+      "id": "fr-en",
+      "request_sha256": "e417690102ecd980eed56e97da3b213b9ddeef0679cb9105372a202852019319",
+      "response_sha256": "22557ff8e12c2f8dd1995b5e429c7207d597f5224f5096e1a4b73b915c15ec34",
+      "elapsed_seconds": 1.656,
+      "semantic_review": "PASS: December 31 expiry and mutual early termination exception preserved."
+    },
+    {
+      "id": "es-ru",
+      "request_sha256": "e8af8eae7fd03d30ce5315982483fad2feff110aa945dc82881a529193b14ad5",
+      "response_sha256": "714cc0c5159984db3e049cf9e5edcb696dbec3b65a5615f4fd48e5c9506085ff",
+      "elapsed_seconds": 2.078,
+      "semantic_review": "PASS: Server availability remains distinct from data freshness."
+    },
+    {
+      "id": "zh-en",
+      "request_sha256": "594d310d30021d9292db02b83d1fdbb9583a5c7c168766db63918c852e91c38e",
+      "response_sha256": "04a305f8a76e1fdace95db72e40f34fcba44b7a1456fa2bce15651858c7fde87",
+      "elapsed_seconds": 2.273,
+      "semantic_review": "PASS: Original retained, translation incomplete and continuation after network recovery preserved."
+    },
+    {
+      "id": "en-zh",
+      "request_sha256": "95d6689640980ddefad8661619535e17e36de714bcbe1a6d47cf5f2a72ae83da",
+      "response_sha256": "257315f6cf7265c3c432e9f65d9a61af3a1ea045155c39dccd830a85aac9ac68",
+      "elapsed_seconds": 1.964,
+      "semantic_review": "PASS: Three independent copies and lack of proof of restoration preserved."
+    },
+    {
+      "id": "en-ru-identifier",
+      "request_sha256": "62479a44119bb8a41cc37951b65d9a6fb8806069166190cb070fef62f1f44af6",
+      "response_sha256": "e8e223207e8a3410dc0cf6181711cd41ca50bfbdd00bc688117160fe04d9013b",
+      "elapsed_seconds": 1.798,
+      "semantic_review": "PASS: HTTP method, endpoint, version and error identifier preserved."
+    },
+    {
+      "id": "en-ru-placeholder",
+      "request_sha256": "6bbf1a24d72eb557b6f531fc11c175fc5846cdde3000c83cb46e2304e980b18b",
+      "response_sha256": "eb6d01701c750773bb8ac392d7fe7dca1b986abe84d7730b95372c16773fa12a",
+      "elapsed_seconds": 1.821,
+      "semantic_review": "PASS: Both placeholders and prohibition on resubmission preserved."
+    },
+    {
+      "id": "ru-en-list",
+      "request_sha256": "88fe0fcfa4c5ee02c63b73c781c8d9777eb66e8fbe6b0faf51bb620a165751ea",
+      "response_sha256": "84b3ba02d4d620b132f7e30dcced410a0127c3e87ce56a921b4d6b0182d207d7",
+      "elapsed_seconds": 1.589,
+      "semantic_review": "PASS: Three items, order, line breaks and negation preserved."
+    },
+    {
+      "id": "en-ru-context",
+      "request_sha256": "3dc86bfd3c820567fa29af6b6f80b1a62780adc35a9742ffa8fe631c2efc75ee",
+      "response_sha256": "e287dd8c7b41f19fbfbdbcc30227f2bcfbfc19e8891c98164d0c327386f426f2",
+      "elapsed_seconds": 1.973,
+      "semantic_review": "PASS: Manufacturing plant is translated as a factory, distinct from a power plant."
+    },
+    {
+      "id": "ru-en-context",
+      "request_sha256": "d26d76dfd8b738999f3071d782ec7a27adc649b0a3289710f3423d51286f866d",
+      "response_sha256": "ff1304665b2e432ba80d1ec10d01aade92c5e549077c07ace6972dd403077f24",
+      "elapsed_seconds": 1.835,
+      "semantic_review": "PASS: No asserted data loss; backup verification and possible queue stall preserved."
+    },
+    {
+      "id": "en-ru-newlines",
+      "request_sha256": "04421419818c38c404c6cfbb3c1e3dd5414ca3bbe5c085495838d8a334f21bbf",
+      "response_sha256": "e1a5ee77f3967b284a00066fff88a5a27318a35f454d0c0f0babf1713e67a42e",
+      "elapsed_seconds": 1.68,
+      "semantic_review": "PASS: Replica states, line breaks and prohibition on simultaneous restart preserved."
+    }
+  ],
+  "security": {
+    "status": "SCOPED_SECURITY_PASS",
+    "architectures": {
+      "linux/amd64": {
+        "status": "SCOPED_SECURITY_PASS",
+        "raw_severity_counts": {
+          "CRITICAL": 1,
+          "HIGH": 35,
+          "LOW": 88,
+          "MEDIUM": 96,
+          "UNKNOWN": 10
+        },
+        "unresolved_high_critical_package_findings": 0,
+        "reviewed_profile_sha256": "8956c19c1451ba52541a6ff8aff3b4c93ef592e01c65d0d048e816b5ea4dbe75"
+      },
+      "linux/arm64": {
+        "status": "SCOPED_SECURITY_PASS",
+        "raw_severity_counts": {
+          "CRITICAL": 1,
+          "HIGH": 35,
+          "LOW": 88,
+          "MEDIUM": 96,
+          "UNKNOWN": 10
+        },
+        "unresolved_high_critical_package_findings": 0,
+        "reviewed_profile_sha256": "8956c19c1451ba52541a6ff8aff3b4c93ef592e01c65d0d048e816b5ea4dbe75"
+      }
+    },
+    "scope": "Default reviewed opaque Python entrypoint, UID 10001, read-only root, zero effective capabilities, no-new-privileges, empty fstab. Findings remain in raw scans; no claim that distribution packages are patched.",
+    "future_unreviewed_high_critical": "BLOCK"
+  },
+  "supply_chain": {
+    "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:97d7604113008b93781061a0bbba2404bcd7769b864e3ade268b71a483e4f70a",
+    "source": "185c5a7b5ad7bdce24a6f5dc5dba18f1eeaa62d1",
+    "signature_identity": "https://github.com/sapogov1978/AELEV-translation-provider/.github/workflows/release.yml@refs/tags/v0.1.1",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "status": "SUPPLY_CHAIN_PASS",
+    "source_audit_run": 42924973947,
+    "release_run": 42925405066
+  },
+  "evidence_sha256": {
+    "release-digest.txt": "c17412ab0d4a2778a6b0af3c3783aca38cf224e27bd36b36aa9da203226f2d1d",
+    "signature.json": "1260b0e7dad173e9755deeb6b35c9fb8c9a097386123f5dc60f7f79ed57bcb80",
+    "manifest.json": "97d7604113008b93781061a0bbba2404bcd7769b864e3ade268b71a483e4f70a",
+    "provenance.json": "b9dfc39025a21026d066af4998759583f567692ae3eefbcd66e1b48d6af94428",
+    "sbom.json": "3d35c4cb804e7d3650c038408ade2b45a1aa5af632970b211d7b487bc44774ff",
+    "supply-chain-verification.json": "0ace98df195836fc88e4edbc13770f02a9e3694a99370dbc849b7419dbc7d6ae",
+    "security-amd64.json": "380841dc98b9fcd191474b4c4c12a958c0910b1eed3b151f4c1c310396bfb076",
+    "security-arm64.json": "c080c6709d8ce8a42ed9a95bbe114a2b8fd5eeacdbfd8d44a440d5faeeae0577",
+    "vulnerabilities-amd64.json": "b06e8d80a7378bcb138d5c2ce1d43e2d51f23b4142f73728b0f1da5575b20b5e",
+    "vulnerabilities-arm64.json": "8265418b077735d3b3ea83afcdc807192145acd4d404ed2312025b70b9d4484f",
+    "quality.json": "de182d191ed63439856d4d63a5ecb0d83b1ebf110f520e9da2bc5db94939afbe",
+    "raw.json": "847771e1192646a09f11b0cec15735ce45865cc84f3bde5018eab130798b4384",
+    "runtime.json": "d8006527f48e3523e5e43e59afdc490f3c777ec39db7719765f47f5139ca7549",
+    "cleanup.json": "5d4f6926a1749d313225836c765e8a50c43b89b21f097d78e0d278cc5e93a7f2",
+    "provider-worker-bundle.json": "42486d26c33e8e7b4767aa436602872be9222e3a38bc80a84a41def3584639e9"
+  },
+  "raw_evidence_path": "/var/tmp/aelev-production-admission.wDuzQd/translation-v011/raw.json",
+  "queue_resume_issued": false,
+  "remaining_gates": [
+    "FULL_INFRASTRUCTURE_CLEAN_ROOM",
+    "DEPLOYMENT_SITE_ADMISSION"
+  ],
+  "exact_worker_compatibility": {
+    "cleanup_preserved": true,
+    "inference_requested": false,
+    "provider_health": "healthy",
+    "provider_image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:97d7604113008b93781061a0bbba2404bcd7769b864e3ade268b71a483e4f70a",
+    "provider_network": "none",
+    "schema_version": 1,
+    "status": "PASS",
+    "worker_image": "ghcr.io/sapogov1978/aelev-platform-infrastructure-translator-worker@sha256:d68d70243a6746cbe9dbdd537b2d773f701c9cd44daabbeac78d88a0e6fa98a5",
+    "worker_uds_probe": "PASS"
+  },
+  "cleanup": {
+    "status": "PASS",
+    "cleanup_preserved": true,
+    "volume": "aelev-admission-translation-v011-e5b44904e4",
+    "initial_failure": "AUTO_REMOVE_CONTAINER_RACE_AFTER_SUCCESSFUL_20_CASE_RUN",
+    "verified_no_container_references": true,
+    "volume_removed": true,
+    "live_requests_reissued": false
+  }
+}

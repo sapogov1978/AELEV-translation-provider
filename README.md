@@ -5,6 +5,11 @@
 вызывает OpenAI Responses API напрямую по HTTPS с системной проверкой TLS.
 Текущий выбор в [provider.lock.json](provider.lock.json) — `gpt-6.1-sol`.
 
+Подписанный [v0.1.1](docs/audit/provider-release-v0.1.1-20261111.md) проверен
+на обеих native-архитектурах по ограниченному security-профилю, прошёл 20
+live-переводов с отдельной проверкой смысла и UDS-проверку с exact worker.
+Полный инфраструктурный clean-room и допуск площадки остаются отдельными gates.
+
 Translator передаёт по Unix socket только текст и пару языков.
 Provider обогащает запрос provider-owned prompt: модель молча
 определяет предметную область всего сегмента и сохраняет
