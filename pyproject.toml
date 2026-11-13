@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aelev-translation-provider"
-version = "0.2.0"
+version = "0.2.1"
 description = "Independent provider behind the AELEV opaque translation port"
 requires-python = ">=3.13"
 dependencies = [

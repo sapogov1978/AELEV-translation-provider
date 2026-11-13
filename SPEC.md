@@ -99,3 +99,9 @@ signature после source/type/lint, Docker test target, opaque UDS/mTLS round
 bounded quality smoke exact model, проверки подписи и clean-room
 gate Platform Infrastructure. Локальные тесты без key не дают production
 admission.
+
+Provider-local failure diagnostics log only HTTP status, an allowlisted error
+code or a transport exception class. They omit headers, error messages, keys,
+source and output text. The opaque error contract remains unchanged. Prompt v2
+preserves stated relationships between quantities and leaves ambiguity intact;
+its new lock requires a new release and independently reviewed evaluation.

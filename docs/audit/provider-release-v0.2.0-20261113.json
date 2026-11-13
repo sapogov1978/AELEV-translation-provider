@@ -1,0 +1,210 @@
+{
+  "schema_version": 4,
+  "status": "QUALITY_NOT_ADMITTED",
+  "recorded_at": "2026-11-13T13:37:48.891856+00:00",
+  "release_tag": "v0.2.0",
+  "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:7eeb9491822836c7718da824b3231f86dd0727842f0ab7e8f92546182e488dc8",
+  "artifact_source_commit": "075f1e8005690f8010cb42fdd7a01cc435792109",
+  "quality_scope": "20 repository-owned synthetic translation segments through actual candidate worker mTLS. Not current-policy domain E2E or all-language admission.",
+  "opaque_inference_attempts": 21,
+  "successful_translations": 20,
+  "semantic_pass": 19,
+  "semantic_fail": 1,
+  "cases": [
+    {
+      "id": "central-bank-term",
+      "request_sha256": "1fc3220460835e86039d3e10502b09e8e0dda0cf788216e85c2326f6ff48a12e",
+      "response_sha256": "7d1249987ffd95ac5c22718be7761e6f04179ce13248c8c4e740b249b984c061",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "central-bank-sentence",
+      "request_sha256": "11d1e4042f6093726df7dcf9892bd463934bdf4432cd4fe1739a56f9f5cc0208",
+      "response_sha256": "1d9194216cc3cf21442cdceee289f9f80456a9b7574ed60fc2a9bf08c5085ed4",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-negation",
+      "request_sha256": "3188d554decda6f6223d9fe826c862dee06a73f6c3e0717e51bc2fa49383c151",
+      "response_sha256": "7795db6fac1a49399adf5f9b837c264e927e2c87a409055dc9a48d6647407d78",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "ru-en-negation",
+      "request_sha256": "9c8a7b1a3c68412b3ff8150ab74e4914dedd26e65faeaa32a32c7332122ce35c",
+      "response_sha256": "af43f9f1a1f995786ee37a72eb839716c88f09640d35e87d4d1c77346edc57e2",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-numbers",
+      "request_sha256": "6773a224db5b0617651bf69655725c516b1f48d4e09fbb40ccc3ffd0a547aef4",
+      "response_sha256": "8f919409f0c3e723906bec184b0cf95b2c8ea19872884bb5a027efc13b576b46",
+      "semantic_review": "FAIL: Added \"из которых\" asserts an unstated subset between the two counts."
+    },
+    {
+      "id": "ru-en-numbers",
+      "request_sha256": "17b606d80befee6d137b12e976034c7673be59af20e07da4a8d2c62f183b436e",
+      "response_sha256": "a2eee9821b347e4d55ae6725973d820a949b411c72abc50367f6af395628c315",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-uncertainty",
+      "request_sha256": "bb4df5af13464053547e21f3ea9d86d9a24c22ffca7abe5530e23cf87222d689",
+      "response_sha256": "73787c2ffd7291d0fa8f7fa3e3f7b8c93b98636c92138929add446cdbd7cdb16",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "ru-en-ambiguity",
+      "request_sha256": "141af3021b87a95a7efe8cb89b1fa359e0fcafbbf4bc5037b16ad14e4a84f3da",
+      "response_sha256": "112d6371b6faf1930086d99af74f80fd52003293caf768ba3838c038d914de61",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "de-en-negation",
+      "request_sha256": "52b60058cdad5f1fe3d0252f312d45ed4ed1c377e2e7f8a3723dc974510073de",
+      "response_sha256": "5c2f5eb9b144ef8cbc0f3e7aac671f088fdc87de904f69b1856c5ab9b3e3dc5f",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-de-technical",
+      "request_sha256": "2465c41f5799eab81f02bad37786692cd8c673e4d49dbf56a62b81d761abebd5",
+      "response_sha256": "caf2e660374f7d27ed0fa9af2c0f931b5a46732ff33eee1b4e2a53032973745e",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "fr-en",
+      "request_sha256": "e417690102ecd980eed56e97da3b213b9ddeef0679cb9105372a202852019319",
+      "response_sha256": "22557ff8e12c2f8dd1995b5e429c7207d597f5224f5096e1a4b73b915c15ec34",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "es-ru",
+      "request_sha256": "e8af8eae7fd03d30ce5315982483fad2feff110aa945dc82881a529193b14ad5",
+      "response_sha256": "714cc0c5159984db3e049cf9e5edcb696dbec3b65a5615f4fd48e5c9506085ff",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "zh-en",
+      "request_sha256": "594d310d30021d9292db02b83d1fdbb9583a5c7c168766db63918c852e91c38e",
+      "response_sha256": "04a305f8a76e1fdace95db72e40f34fcba44b7a1456fa2bce15651858c7fde87",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-zh",
+      "request_sha256": "95d6689640980ddefad8661619535e17e36de714bcbe1a6d47cf5f2a72ae83da",
+      "response_sha256": "f9d914bfe84f6e6c5517543f40c5c6e5b13da5b1c79eedf1d4291e93b13359ce",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-identifier",
+      "request_sha256": "62479a44119bb8a41cc37951b65d9a6fb8806069166190cb070fef62f1f44af6",
+      "response_sha256": "e8e223207e8a3410dc0cf6181711cd41ca50bfbdd00bc688117160fe04d9013b",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-placeholder",
+      "request_sha256": "6bbf1a24d72eb557b6f531fc11c175fc5846cdde3000c83cb46e2304e980b18b",
+      "response_sha256": "eb6d01701c750773bb8ac392d7fe7dca1b986abe84d7730b95372c16773fa12a",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "ru-en-list",
+      "request_sha256": "88fe0fcfa4c5ee02c63b73c781c8d9777eb66e8fbe6b0faf51bb620a165751ea",
+      "response_sha256": "84b3ba02d4d620b132f7e30dcced410a0127c3e87ce56a921b4d6b0182d207d7",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-context",
+      "request_sha256": "3dc86bfd3c820567fa29af6b6f80b1a62780adc35a9742ffa8fe631c2efc75ee",
+      "response_sha256": "e287dd8c7b41f19fbfbdbcc30227f2bcfbfc19e8891c98164d0c327386f426f2",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "ru-en-context",
+      "request_sha256": "d26d76dfd8b738999f3071d782ec7a27adc649b0a3289710f3423d51286f866d",
+      "response_sha256": "81bdaf07e41890f77735267e33cdbdbed6b7abc5f43032bd98ce563cb6b09abf",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    },
+    {
+      "id": "en-ru-newlines",
+      "request_sha256": "04421419818c38c404c6cfbb3c1e3dd5414ca3bbe5c085495838d8a334f21bbf",
+      "response_sha256": "d86b308462a584fc8f7188375be542856ad110a45caf691cf6c4335cea68b193",
+      "semantic_review": "PASS: Actual source/output pair preserves the stated meaning, uncertainty, quantities and identifiers in this bounded case."
+    }
+  ],
+  "technical_failure": {
+    "case_id": "zh-en",
+    "http_status": 503,
+    "opaque_detail": "PROVIDER_RUNTIME_UNAVAILABLE",
+    "root_cause": "UNCLASSIFIED",
+    "one_bounded_retry_succeeded": true,
+    "successful_cases_repeated": false
+  },
+  "supply_chain": {
+    "status": "SUPPLY_CHAIN_PASS",
+    "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:7eeb9491822836c7718da824b3231f86dd0727842f0ab7e8f92546182e488dc8",
+    "source": "075f1e8005690f8010cb42fdd7a01cc435792109",
+    "signature_identity": "https://github.com/sapogov1978/AELEV-translation-provider/.github/workflows/release.yml@refs/tags/v0.2.0",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "native_image_id": "sha256:7eeb9491822836c7718da824b3231f86dd0727842f0ab7e8f92546182e488dc8",
+    "source_audit_run": 43427167220,
+    "release_run": 43427487494
+  },
+  "native_security": {
+    "amd64": {
+      "status": "SCOPED_SECURITY_PASS",
+      "raw_severity_counts": {
+        "CRITICAL": 1,
+        "HIGH": 35,
+        "LOW": 88,
+        "MEDIUM": 106,
+        "UNKNOWN": 4
+      },
+      "unresolved_high_critical_package_findings": 0
+    },
+    "arm64": {
+      "status": "SCOPED_SECURITY_PASS",
+      "raw_severity_counts": {
+        "CRITICAL": 1,
+        "HIGH": 35,
+        "LOW": 88,
+        "MEDIUM": 106,
+        "UNKNOWN": 4
+      },
+      "unresolved_high_critical_package_findings": 0
+    }
+  },
+  "candidate_worker_image": "sha256:71535edb34c03efe1a4793d2f1a1bc034d15f6a2b6c841e7ba6fb3b625e0d438",
+  "worker_signed_release_admitted": false,
+  "foreign_same_ca_peer_rejected": true,
+  "test_pki": true,
+  "physical_multihost_proven": false,
+  "queue_resume_issued": false,
+  "working_runtime_switched": false,
+  "cleanup_preserved": true,
+  "evidence_sha256": {
+    "signature.json": "8dfeeaad1d0428a29070f46fdb9ce62f77f335c40df6770dd8b851e68140fd7a",
+    "manifest.json": "7eeb9491822836c7718da824b3231f86dd0727842f0ab7e8f92546182e488dc8",
+    "provenance.json": "d0eca7f9440243bddd6fc377a69b9383a175cad5e9ed8d4d31aaf752c041a72d",
+    "sbom.json": "cecb4bf08d3425ad603a23554eb8cc2950e1fd5b67e6ac6a21d15d117d714b0c",
+    "security-amd64.json": "89ffb4fd581e9ccbe1282e142a3b316bac1fc20cdb40fdaac92b48a7bb1fd3a7",
+    "security-arm64.json": "fbe3de6c633cc41f52faaf9444d81311a37b3e7361db07c13377f8eb6e6486c7",
+    "vulnerabilities-amd64.json": "07c90c9fc5502d015ac6e3cf86a6febeceef15bc4d33c25e2e583db9825d1a3f",
+    "vulnerabilities-arm64.json": "5a78be0367d363faf986dac463c2a8a5376d05a876c000a1ce8f4301e56f5fd9",
+    "quality.json": "742a8b06ee40ae0f6233ec01203029fb5b8c7395dcbedabc3ef3588b6180c5ce",
+    "raw.json": "8a6d40a06a9586295a41d64f477eb5c0371e8db64529bb921bebe0119f9230a6",
+    "quality-pending-only/quality.json": "e03b5fb356cccf00f6d2c4cb5558adc56c914ebb7643b3f1892aa5c118129e42",
+    "quality-pending-only/raw.json": "009c52c9c8984710686edc1bfc869ca7575d14d5e5b13b437e02ada594b37ef2"
+  },
+  "raw_evidence_path": "/Users/ksap/.local/share/aelev/evidence/translator-mtls-20261113-_ejt87iv/release-v020",
+  "remaining_gates": [
+    "NEW_PROMPT_RELEASE_QUALITY",
+    "SIGNED_NETWORK_WORKER_INTEGRATION",
+    "PERMANENT_DEPLOYMENT_IDENTITIES",
+    "PHYSICAL_MULTIHOST",
+    "PLATFORM_END_TO_END"
+  ]
+}

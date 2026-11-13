@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -21,6 +22,7 @@ from aelev_translation_provider.contract import ProviderRequestError
 from aelev_translation_provider.languages import language_name
 
 OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
+LOGGER = logging.getLogger(__name__)
 PLACEHOLDER_API_KEYS = frozenset(
     {"REPLACE_WITH_OPENAI_API_KEY", "YOUR_OPENAI_API_KEY", "CHANGE_ME"}
 )
@@ -39,6 +41,33 @@ TRANSLATION_FORMAT = {
 
 class ProviderUnavailable(RuntimeError):
     """A bounded technical failure that must remain retryable to the caller."""
+
+
+def record_http_failure(response: httpx.Response) -> None:
+    """Provider-local diagnostics; never log bodies, headers, keys or source text."""
+    code = "UNCLASSIFIED"
+    try:
+        value: object = response.json() if len(response.content) <= 65536 else None
+    except ValueError:
+        value = None
+    error = (
+        cast(dict[str, object], value).get("error") if isinstance(value, dict) else None
+    )
+    candidate = (
+        cast(dict[str, object], error).get("code") if isinstance(error, dict) else None
+    )
+    if candidate in (
+        "insufficient_quota",
+        "rate_limit_exceeded",
+        "invalid_api_key",
+        "model_not_found",
+        "server_error",
+        "context_length_exceeded",
+    ):
+        code = str(candidate)
+    LOGGER.warning(
+        "provider_upstream_failed status=%d code=%s", response.status_code, code
+    )
 
 
 def _mapping(value: object, code: str = "PROVIDER_LOCK_INVALID") -> dict[str, Any]:
@@ -301,9 +330,17 @@ class TranslationEngine:
                 timeout=remaining,
             )
         except httpx.TimeoutException as error:
+            LOGGER.warning(
+                "provider_upstream_failed transport=%s", type(error).__name__
+            )
             raise ProviderUnavailable("PROVIDER_DEADLINE_EXCEEDED") from error
         except httpx.HTTPError as error:
+            LOGGER.warning(
+                "provider_upstream_failed transport=%s", type(error).__name__
+            )
             raise ProviderUnavailable("PROVIDER_RUNTIME_UNAVAILABLE") from error
+        if response.status_code != 200:
+            record_http_failure(response)
         if response.status_code in {401, 403, 429} or response.status_code >= 500:
             raise ProviderUnavailable("PROVIDER_RUNTIME_UNAVAILABLE")
         if response.status_code != 200:

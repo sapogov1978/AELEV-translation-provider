@@ -1,5 +1,11 @@
 # AELEV Translation Provider
 
+Signed [v0.2.0](docs/audit/provider-release-v0.2.0-20261113.json) passed supply-chain,
+native security and mTLS transport checks but is **not quality-admitted**: one
+translation added an unstated numerical subset. Candidate v0.2.1 pins prompt v2
+and safe provider-local failure diagnostics; its new exact-image quality gate
+remains pending.
+
 Непрозрачный provider перевода для AELEV. Standalone-модели, весов и
 нативного inference runtime в активной поставке больше нет. Provider
 вызывает OpenAI Responses API напрямую по HTTPS с проверкой CA/hostname по
@@ -38,7 +44,7 @@ flowchart LR
   приватный контракт.
 - [provider.lock.json](provider.lock.json) — API model ID, prompt digest и execution
   profile; для смены модели нужен новый provider release.
-- [prompts/domain-preserving-translation-v1.txt](prompts/domain-preserving-translation-v1.txt)
+- [prompts/domain-preserving-translation-v2.txt](prompts/domain-preserving-translation-v2.txt)
   — закреплённый domain-preserving prompt.
 - [TASKS.md](TASKS.md) — открытые integration/admission gates.
 

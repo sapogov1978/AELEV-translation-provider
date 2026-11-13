@@ -111,7 +111,8 @@ def test_bad_lock_fails_closed(tmp_path: Path, mutation: str) -> None:
 def test_prompt_digest_detects_changed_prompt(tmp_path: Path) -> None:
     prompt_root = tmp_path / "prompts"
     prompt_root.mkdir()
-    prompt = prompt_root / "domain-preserving-translation-v1.txt"
+    lock = json.loads((ROOT / "provider.lock.json").read_text())
+    prompt = prompt_root / (lock["api"]["prompt_profile"] + ".txt")
     prompt.write_text("changed")
     with pytest.raises(RuntimeError, match="PROMPT_DIGEST"):
         engine.read_provider_lock(ROOT / "provider.lock.json", prompt_root)
@@ -285,6 +286,59 @@ def test_invalid_model_output_is_bounded(translated: str) -> None:
             provider.translate("Hello", "en", "de")
     finally:
         provider.close()
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "expected"),
+    [
+        (429, "insufficient_quota", "insufficient_quota"),
+        (429, "rate_limit_exceeded", "rate_limit_exceeded"),
+        (503, "server_error", "server_error"),
+        (401, "SECRET-CANARY", "UNCLASSIFIED"),
+        (503, {"nested": "SECRET-CANARY"}, "UNCLASSIFIED"),
+    ],
+)
+def test_upstream_diagnostics_are_safe_and_do_not_change_opaque_errors(
+    caplog: pytest.LogCaptureFixture, status: int, code: object, expected: str
+) -> None:
+    canary = "SECRET-CANARY"
+    provider = engine.TranslationEngine(
+        settings(api_key=canary),
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                status,
+                json={"error": {"code": code, "message": canary}},
+                headers={"Authorization": canary},
+            )
+        ),
+    )
+    try:
+        with pytest.raises(
+            engine.ProviderUnavailable, match="^PROVIDER_RUNTIME_UNAVAILABLE$"
+        ):
+            provider.translate(canary, "en", "de")
+    finally:
+        provider.close()
+    assert f"status={status} code={expected}" in caplog.text
+    assert canary not in caplog.text
+
+
+def test_transport_diagnostic_does_not_log_the_exception_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def unavailable(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("SECRET-CANARY")
+
+    provider = engine.TranslationEngine(
+        settings(), transport=httpx.MockTransport(unavailable)
+    )
+    try:
+        with pytest.raises(engine.ProviderUnavailable):
+            provider.translate("SECRET-CANARY", "en", "de")
+    finally:
+        provider.close()
+    assert "transport=ConnectError" in caplog.text
+    assert "SECRET-CANARY" not in caplog.text
 
 
 class FakeEngine:

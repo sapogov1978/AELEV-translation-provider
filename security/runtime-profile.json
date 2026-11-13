@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "profile": "opaque-python-provider-bookworm-v1",
-  "reviewed_at": "2026-11-13T12:27:12.919334+00:00",
-  "scope": "Default opaque UDS/mTLS provider entrypoint; Python 3.13.7 / Debian Bookworm, UID 10001, read-only root, zero capabilities and no-new-privileges. Current source, native symbol paths, effective CA bundles and CPython TLS conditions are reviewed in docs/audit/runtime-security-20261113.md. Not general-purpose OS CLI use or platform/site admission.",
+  "reviewed_at": "2026-11-13T13:37:48.904066+00:00",
+  "scope": "Default opaque UDS/mTLS provider entrypoint; Python 3.13.7 / Debian Bookworm, UID 10001, read-only root, zero capabilities and no-new-privileges. Current source, native symbol paths, effective CA bundles and CPython TLS conditions are reviewed in docs/audit/runtime-security-20261113.md. Not general-purpose OS CLI use or platform/site admission. Candidate 0.2.1 adds bounded provider-local HTTP/code/transport diagnostics, with no text, headers, keys or arbitrary error messages; model is unchanged and prompt v2 has separate quality admission.",
   "python_version": "3.13.7",
   "application_sources_sha256": {
     "src/aelev_translation_provider/__init__.py": "f9fadd44b9815683e7f60f66a6b078933ae09aa8b9ffa8ec087b313159aea390",
     "src/aelev_translation_provider/__main__.py": "38fb6b99c9867c5713dc320cbda5fd69f9b7baaf6b33c08284b710369e459c39",
     "src/aelev_translation_provider/app.py": "c7084fa59b20368eff9dea60de01f2115c52b58329f2146486e42259b0af6176",
     "src/aelev_translation_provider/contract.py": "a25b54eaae47922ec7deaa1ece06863249de16ce16ca465e7094b79fb6bdb1d6",
-    "src/aelev_translation_provider/engine.py": "94c0c972c31eb6bacabfeab35ec784df9556fafc019eedeb9f7a6689d178ab37",
+    "src/aelev_translation_provider/engine.py": "10ae1ec4946f8c2999a9c66fef7f9db0cc605bcf7fd0a54f3171468ce4f0f81c",
     "src/aelev_translation_provider/healthcheck.py": "8372ac628f0fd4938eaaf63eaae54a284cc808b24b0090578211e5621ffc682c",
     "src/aelev_translation_provider/ingress.py": "0aad761ab96460983568dbdcd2416e919029481c780af3ed4f2c06a0ee88f43c",
     "src/aelev_translation_provider/languages.py": "01d5e1484bb391a08bb3bbf1020ee5edb46cd2b71359068650733e86f61c3d3a",
@@ -18,7 +18,7 @@
     "src/aelev_translation_provider/transport.py": "a6a5d55026cdcf19b604aac385702dfb365b267de44cce5aae69af3a73ae6f33"
   },
   "dependency_lock_sha256": "468f7739cba27e6000cec4363aaeb171188317ff146a18b0a5293727a16d7138",
-  "provider_lock_sha256": "5f05f887929b0d01e5296b5c0ac3a1539ff1db19323e8dd95d4a3bd89fc876f1",
+  "provider_lock_sha256": "10b2799388cc0d10d63fbd917f1c854ec0d14b86b3ea6ad93c49c9b8ff406eb2",
   "runtime_dependencies": {
     "annotated-doc": "0.0.5",
     "annotated-types": "0.8.0",

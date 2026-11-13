@@ -1,11 +1,15 @@
 # Задачи AELEV Translation Provider
 
+- [ ] Допустить exact v0.2.1 по новым 20 исходным/выходным парам после prompt v2.
+  [v0.2.0](docs/audit/provider-release-v0.2.0-20261113.json) отклонён по качеству:
+  19 смысловых PASS и один FAIL при сохранённых 21 попытке, включая один 503.
+
 Новый mTLS runtime по ADR-0003 требует отдельного допуска; отметки ниже
 относятся к неизменяемому историческому v0.1.1. Открыты exact network worker
 integration, новый security review/release обеих архитектур, bounded quality
 и проверка независимых физических узлов.
 
-Для кандидата 0.2.0 выполнена [native arm64-проверка](docs/audit/provider-network-candidate-20261113.json):
+До выпуска 0.2.0 выполнена [native arm64-проверка кандидата](docs/audit/provider-network-candidate-20261113.json):
 71 provider test, 34 worker transport tests, раздельные network/TLS volumes,
 same-CA foreign-client denial, смена доверия и ограниченный security gate.
 Это ещё не допуск подписанного выпуска, нового worker release или реального inference.

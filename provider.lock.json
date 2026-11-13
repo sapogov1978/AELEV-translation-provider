@@ -2,17 +2,17 @@
   "schema_version": "2.0.0",
   "status": "SELECTED_REMOTE_API",
   "provider": "openai",
-  "selected_at": "2026-11-09",
+  "selected_at": "2026-11-13",
   "selection_policy": "OPERATOR_APPROVED_DOMAIN_PRESERVING_REMOTE_API",
-  "execution_ref": "openai-responses@sha256:f36b0bcddfac1e9a259e44010c0c8f7fe253a803e831375d09bf6461129dc03a",
+  "execution_ref": "openai-responses@sha256:64b2a630064ff6b6e531a7cff1237df91e40f2cb683a42903296fb61ceb1e3b6",
   "api": {
     "endpoint": "https://api.openai.com/v1/responses",
     "model": "gpt-6.1-sol",
     "reasoning_effort": "medium",
     "max_output_tokens": 16384,
     "store": false,
-    "prompt_profile": "domain-preserving-translation-v1",
-    "prompt_sha256": "4acefdb8c3526c459df6f88ea58e0cab10ec66726b0203a5c5dacf42a1d113ec"
+    "prompt_profile": "domain-preserving-translation-v2",
+    "prompt_sha256": "cd66c635f8f24cc345c7cdae2adf51476a4cafa112f3bb237f86ebdd82f9998f"
   },
   "transport": {
     "mode": "direct-https",

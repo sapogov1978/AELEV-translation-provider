@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-13: выпущенный v0.2.0 не допущен по качеству: ручной review нашёл добавленную связь между числами в одном из 20 переводов. Отдельный 503 и единственный повтор сохранены. Кандидат v0.2.1 закрепляет prompt v2 с запретом добавлять subset/overlap/total и сохранять неоднозначность; модель и opaque API не меняются. Известная ошибка усилена в corpus gate, который не заменяет смысловую проверку. Provider-local diagnostics различают безопасные HTTP/code и transport class без ключей, headers, сообщений и текста; opaque ошибки сохранены.
+
 - 2026-11-13: кандидат 0.2.0 прошёл native arm64: 71 provider test, 34 worker transport tests, раздельный network bundle и ограниченный security gate при сохранённых raw findings. Публичная опись фиксирует source/evidence hashes и открытые release/quality/physical-host gates; новые source/transport не объявляются допущенными по receipt v0.1.1. Руководство уточняет существующий keyless image-signing workflow: версия задаётся annotated tag, подпись относится к exact image digest.
 
 - 2026-11-13: для кандидата 0.2.0 выполнен отдельный source review CPython TLS advisories без изменения Python/Bookworm. Native gate требует отсутствие известных root paths compromised CA в system/certifi bundles; image environment не допускает SSL trust/key logging overrides. TLS 1.3 HRR с GC/renewal проверяет callback context. Raw OS findings сохраняются; допуск ограничен exact source/image profile.

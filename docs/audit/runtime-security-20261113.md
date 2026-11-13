@@ -27,3 +27,10 @@ CRITICAL `CVE-2023-45853` относится к отсутствующему Min
 | CVE-2026-115557, compromised CA keys | `ca-certificates=20250419~deb12u2`, `certifi=2026.10.23`; известные опасные root paths удалены из обоих действительных bundles. Внутреннее mTLS использует собственный SPIRE bundle | Native probe проверяет четыре DER fingerprints по [первичному списку roots](https://emudhra.we-have-a-problem.com/roots.json); `known_compromised_ca_roots_absent=true` обязателен. [Certifi release](https://github.com/certifi/python-certifi/releases/tag/2026.10.19) и [описание инцидента](https://emudhra.we-have-a-problem.com/) определяют область |
 
 Это не общий допуск всех применений Python 3.13.7 или чужой PKI. Один физический хост не закрывает распределённую приёмку. Каждый новый image/release требует своего scan и проверки тех же условий.
+
+Candidate 0.2.1 reviews the added logging path: only HTTP status, a fixed
+allowlist of error codes or the exception class is formatted. No headers,
+error messages, keys, source/output text, process invocation or dynamic native
+API is added. Native trust/footprint and all existing CVE conditions remain
+mandatory. Prompt v2 changes the provider lock and requires fresh quality
+admission; the signed v0.2.0 has a recorded semantic rejection.

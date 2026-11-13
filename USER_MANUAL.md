@@ -7,7 +7,7 @@ Provider переведён на OpenAI Responses API. Локальная реа
 исходящий HTTPS-доступ. Действующий API key предоставляется отдельно для каждой
 установки. Проверка от 2026-11-10 подтвердила доступ и 20-case bounded live smoke
 точного опубликованного image; она не заменяет допуск новой установки. Для
-текущего v0.1.1 выполнена отдельная
+исторического v0.1.1 выполнена отдельная
 [проверка exact release](docs/audit/provider-release-v0.1.1-20261111.md) с новым
 live-запуском, проверкой смысла, обеих native-архитектур и UDS-пары.
 
@@ -124,3 +124,12 @@ Healthcheck не заменяет live smoke: он подтверждает то
 digest. Не удаляйте UDS volume, Translator DB, Kafka topics или результаты.
 Откат не восстанавливает отозванный credential, не означает `RESUME` и не
 запускает остановленный worker.
+
+## Provider-local failure diagnostics
+
+`provider_upstream_failed` records HTTP status and a bounded allowlisted code,
+including `insufficient_quota` versus `rate_limit_exceeded`, or the transport
+exception class. It never records key values, headers, arbitrary upstream
+messages or source/output text. These are private provider logs; the opaque
+port keeps its existing generic technical codes. The initial v0.2.0 503 cannot
+be retrospectively classified from its generic response.
