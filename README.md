@@ -1,10 +1,11 @@
 # AELEV Translation Provider
 
-Signed [v0.2.0](docs/audit/provider-release-v0.2.0-20261113.json) passed supply-chain,
-native security and mTLS transport checks but is **not quality-admitted**: one
-translation added an unstated numerical subset. Candidate v0.2.1 pins prompt v2
-and safe provider-local failure diagnostics; its new exact-image quality gate
-remains pending.
+Signed [v0.2.1](docs/audit/provider-release-v0.2.1-20261113.md) passed both native
+security profiles, 77 arm64 source tests and 20 new mTLS translations, each
+reviewed for meaning. Prompt v2 preserves numerical relationships. The exact
+new signed worker pair, permanent identities and platform E2E remain open.
+[v0.2.0](docs/audit/provider-release-v0.2.0-20261113.json) remains quality-rejected;
+its semantic failure and separate 503 were retained.
 
 Непрозрачный provider перевода для AELEV. Standalone-модели, весов и
 нативного inference runtime в активной поставке больше нет. Provider

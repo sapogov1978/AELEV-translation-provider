@@ -1,0 +1,269 @@
+{
+  "schema_version": 4,
+  "status": "COMPONENT_RELEASE_VERIFIED",
+  "recorded_at": "2026-11-13T14:16:10.028763+00:00",
+  "release_tag": "v0.2.1",
+  "owner": "translation",
+  "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:9d1929bbf30c510f902b3ff2a80a905025ffe42ec915102d316385c02a9bcd9a",
+  "artifact_source_commit": "846381021f53421d6046d8622c2b12e61277ffd7",
+  "native_platform": "linux/arm64",
+  "case_count": 20,
+  "opaque_inference_attempts": 20,
+  "automated_checks": "PASS",
+  "semantic_reviewer": "Codex",
+  "semantic_pass": 20,
+  "semantic_fail": 0,
+  "quality_scope": "Twenty repository-owned synthetic translation segments, each actual source/output pair reviewed. Full opaque mTLS requests through the real candidate worker. Not an independent linguistic benchmark, current-policy platform E2E or all-language admission.",
+  "cases": [
+    {
+      "id": "central-bank-term",
+      "http_status": 200,
+      "request_sha256": "1fc3220460835e86039d3e10502b09e8e0dda0cf788216e85c2326f6ff48a12e",
+      "response_sha256": "7d1249987ffd95ac5c22718be7761e6f04179ce13248c8c4e740b249b984c061",
+      "semantic_review": "PASS: Institutional term, no invented country."
+    },
+    {
+      "id": "central-bank-sentence",
+      "http_status": 200,
+      "request_sha256": "11d1e4042f6093726df7dcf9892bd463934bdf4432cd4fe1739a56f9f5cc0208",
+      "response_sha256": "3a2a56cba31fb26a2b80b28af82132a7ea6cb61a2db472de047816cc57db490b",
+      "semantic_review": "PASS: Negation and unspecified country preserved."
+    },
+    {
+      "id": "en-ru-negation",
+      "http_status": 200,
+      "request_sha256": "3188d554decda6f6223d9fe826c862dee06a73f6c3e0717e51bc2fa49383c151",
+      "response_sha256": "7795db6fac1a49399adf5f9b837c264e927e2c87a409055dc9a48d6647407d78",
+      "semantic_review": "PASS: Prohibition on deleting the original preserved."
+    },
+    {
+      "id": "ru-en-negation",
+      "http_status": 200,
+      "request_sha256": "9c8a7b1a3c68412b3ff8150ab74e4914dedd26e65faeaa32a32c7332122ce35c",
+      "response_sha256": "af43f9f1a1f995786ee37a72eb839716c88f09640d35e87d4d1c77346edc57e2",
+      "semantic_review": "PASS: Payment remains unconfirmed; repeat transfer forbidden until reconciliation."
+    },
+    {
+      "id": "en-ru-numbers",
+      "http_status": 200,
+      "request_sha256": "6773a224db5b0617651bf69655725c516b1f48d4e09fbb40ccc3ffd0a547aef4",
+      "response_sha256": "1a3851c08f1be73560eac2aee840c065db1d4f15ce1acdb2f77ea992b8512fd1",
+      "semantic_review": "PASS: Date, distinct counts 17 and 3, and 1250 kg preserved without adding a subset."
+    },
+    {
+      "id": "ru-en-numbers",
+      "http_status": 200,
+      "request_sha256": "17b606d80befee6d137b12e976034c7673be59af20e07da4a8d2c62f183b436e",
+      "response_sha256": "10439fda898f282794cfd2f49fe212550c85b2df9005dca51d7523495d41633b",
+      "semantic_review": "PASS: Decrease 12 to 7 over 24 hours and both unchanged identifiers preserved."
+    },
+    {
+      "id": "en-ru-uncertainty",
+      "http_status": 200,
+      "request_sha256": "bb4df5af13464053547e21f3ea9d86d9a24c22ffca7abe5530e23cf87222d689",
+      "response_sha256": "d065bdb5fd04fbb34a95210dd1b3e7f078035460fd192c4c0f7db46f0a7eea07",
+      "semantic_review": "PASS: Demand decline remains tentative; no established cause invented."
+    },
+    {
+      "id": "ru-en-ambiguity",
+      "http_status": 200,
+      "request_sha256": "141af3021b87a95a7efe8cb89b1fa359e0fcafbbf4bc5037b16ad14e4a84f3da",
+      "response_sha256": "112d6371b6faf1930086d99af74f80fd52003293caf768ba3838c038d914de61",
+      "semantic_review": "PASS: Door lock and hill castle disambiguated from complete context."
+    },
+    {
+      "id": "de-en-negation",
+      "http_status": 200,
+      "request_sha256": "52b60058cdad5f1fe3d0252f312d45ed4ed1c377e2e7f8a3723dc974510073de",
+      "response_sha256": "bb9f6cac8cfe2c716437781c018652892f55fcaaeb93ba26d3d0aac2afb36dd8",
+      "semantic_review": "PASS: Not cancelled; release conditional on the security check."
+    },
+    {
+      "id": "en-de-technical",
+      "http_status": 200,
+      "request_sha256": "2465c41f5799eab81f02bad37786692cd8c673e4d49dbf56a62b81d761abebd5",
+      "response_sha256": "e7cbba00f75af88d69f6ad6abc9cc3698befce063fbb965d88cc423c9a418f6f",
+      "semantic_review": "PASS: Database readiness precedes restart; request_id preserved."
+    },
+    {
+      "id": "fr-en",
+      "http_status": 200,
+      "request_sha256": "e417690102ecd980eed56e97da3b213b9ddeef0679cb9105372a202852019319",
+      "response_sha256": "22557ff8e12c2f8dd1995b5e429c7207d597f5224f5096e1a4b73b915c15ec34",
+      "semantic_review": "PASS: December 31 expiry and mutual early-termination exception preserved."
+    },
+    {
+      "id": "es-ru",
+      "http_status": 200,
+      "request_sha256": "e8af8eae7fd03d30ce5315982483fad2feff110aa945dc82881a529193b14ad5",
+      "response_sha256": "714cc0c5159984db3e049cf9e5edcb696dbec3b65a5615f4fd48e5c9506085ff",
+      "semantic_review": "PASS: Server availability kept distinct from data freshness."
+    },
+    {
+      "id": "zh-en",
+      "http_status": 200,
+      "request_sha256": "594d310d30021d9292db02b83d1fdbb9583a5c7c168766db63918c852e91c38e",
+      "response_sha256": "1d3b5b6ded9673a0fc7eb03a2f74f4e7a528b1dc977151db5748ba8aa6fe33c8",
+      "semantic_review": "PASS: Original saved, translation incomplete, resume after network recovery, history retained."
+    },
+    {
+      "id": "en-zh",
+      "http_status": 200,
+      "request_sha256": "95d6689640980ddefad8661619535e17e36de714bcbe1a6d47cf5f2a72ae83da",
+      "response_sha256": "257315f6cf7265c3c432e9f65d9a61af3a1ea045155c39dccd830a85aac9ac68",
+      "semantic_review": "PASS: Three independent copies; successful upload does not establish restoration."
+    },
+    {
+      "id": "en-ru-identifier",
+      "http_status": 200,
+      "request_sha256": "62479a44119bb8a41cc37951b65d9a6fb8806069166190cb070fef62f1f44af6",
+      "response_sha256": "e8e223207e8a3410dc0cf6181711cd41ca50bfbdd00bc688117160fe04d9013b",
+      "semantic_review": "PASS: GET, endpoint, version and error identifier preserved."
+    },
+    {
+      "id": "en-ru-placeholder",
+      "http_status": 200,
+      "request_sha256": "6bbf1a24d72eb557b6f531fc11c175fc5846cdde3000c83cb46e2304e980b18b",
+      "response_sha256": "eb6d01701c750773bb8ac392d7fe7dca1b986abe84d7730b95372c16773fa12a",
+      "semantic_review": "PASS: Both placeholders and prohibition on resubmission preserved."
+    },
+    {
+      "id": "ru-en-list",
+      "http_status": 200,
+      "request_sha256": "88fe0fcfa4c5ee02c63b73c781c8d9777eb66e8fbe6b0faf51bb620a165751ea",
+      "response_sha256": "84b3ba02d4d620b132f7e30dcced410a0127c3e87ce56a921b4d6b0182d207d7",
+      "semantic_review": "PASS: Three ordered lines and negation preserved."
+    },
+    {
+      "id": "en-ru-context",
+      "http_status": 200,
+      "request_sha256": "3dc86bfd3c820567fa29af6b6f80b1a62780adc35a9742ffa8fe631c2efc75ee",
+      "response_sha256": "e287dd8c7b41f19fbfbdbcc30227f2bcfbfc19e8891c98164d0c327386f426f2",
+      "semantic_review": "PASS: Manufacturing factory distinguished from power plant; no new generation planned."
+    },
+    {
+      "id": "ru-en-context",
+      "http_status": 200,
+      "request_sha256": "d26d76dfd8b738999f3071d782ec7a27adc649b0a3289710f3423d51286f866d",
+      "response_sha256": "641d3807ad4c3c486f3931fa366f04818c68a048334ec69df28bf388422e199f",
+      "semantic_review": "PASS: No data loss asserted; recovery and queue progress remain unproven by server responses."
+    },
+    {
+      "id": "en-ru-newlines",
+      "http_status": 200,
+      "request_sha256": "04421419818c38c404c6cfbb3c1e3dd5414ca3bbe5c085495838d8a334f21bbf",
+      "response_sha256": "e1a5ee77f3967b284a00066fff88a5a27318a35f454d0c0f0babf1713e67a42e",
+      "semantic_review": "PASS: Replica states, line breaks and prohibition on simultaneous restart preserved."
+    }
+  ],
+  "previous_release_quality_rejection": "provider-release-v0.2.0-20261113.json",
+  "startup_discrepancy": {
+    "status": "STARTUP_CHECK_FAILED_BEFORE_INFERENCE",
+    "inference_requested": false,
+    "original_report_intent_flag_was_true": true,
+    "original_report_sha256": "eb759becb3ab5c32766ed8328a4eeb17eceb6adaea5c1933b0a255e71b8f8527",
+    "original_script_sha256": "58e66954411b19b729748560dd4235d3b45b8a0f3879f9b846b7a88ff1b0d3bd",
+    "failed_operation": "docker inspect formatted State.Status and State.Health.Status",
+    "command_output_not_retained": true,
+    "root_cause": "UNCLASSIFIED",
+    "cleanup_preserved": true
+  },
+  "supply_chain": {
+    "status": "SUPPLY_CHAIN_PASS",
+    "image": "ghcr.io/sapogov1978/aelev-translation-provider@sha256:9d1929bbf30c510f902b3ff2a80a905025ffe42ec915102d316385c02a9bcd9a",
+    "source": "846381021f53421d6046d8622c2b12e61277ffd7",
+    "signature_identity": "https://github.com/sapogov1978/AELEV-translation-provider/.github/workflows/release.yml@refs/tags/v0.2.1",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "engine_image_id": "sha256:9d1929bbf30c510f902b3ff2a80a905025ffe42ec915102d316385c02a9bcd9a",
+    "native_architecture": "linux/arm64",
+    "source_audit_run": 43435695551,
+    "release_run": 43436191745,
+    "per_platform_attestation_links_verified": true,
+    "per_platform_exact_vcs_source_verified": true,
+    "per_platform_spdx_inventory_verified": true
+  },
+  "native_security": {
+    "amd64": {
+      "status": "SCOPED_SECURITY_PASS",
+      "raw_severity_counts": {
+        "CRITICAL": 1,
+        "HIGH": 35,
+        "LOW": 88,
+        "MEDIUM": 106,
+        "UNKNOWN": 4
+      },
+      "unresolved_high_critical_package_findings": 0
+    },
+    "arm64": {
+      "status": "SCOPED_SECURITY_PASS",
+      "raw_severity_counts": {
+        "CRITICAL": 1,
+        "HIGH": 35,
+        "LOW": 88,
+        "MEDIUM": 106,
+        "UNKNOWN": 4
+      },
+      "unresolved_high_critical_package_findings": 0
+    }
+  },
+  "native_source_tests": {
+    "status": "PASS",
+    "architecture": "linux/arm64",
+    "image_id": "sha256:4c6f7c6ebdfe3d3e62f6516e145e1cdf2033c3d2a8f306faf52e197622415c9b",
+    "source": "846381021f53421d6046d8622c2b12e61277ffd7",
+    "inference_requested": false,
+    "returncode": 0,
+    "summary": [
+      "77 passed in 10.62s"
+    ]
+  },
+  "network_pair": {
+    "worker_image": "sha256:71535edb34c03efe1a4793d2f1a1bc034d15f6a2b6c841e7ba6fb3b625e0d438",
+    "worker_signed_release_admitted": false,
+    "foreign_same_ca_client_rejected": true,
+    "test_pki": true,
+    "physical_multihost_proven": false
+  },
+  "cleanup_preserved": true,
+  "working_runtime_switched": false,
+  "queue_resume_issued": false,
+  "runtime_preservation": {
+    "baseline_count": 260,
+    "unchanged_count": 259,
+    "unrelated_existing_container_restart_counter_changed": 1,
+    "no_baseline_container_removed_or_manually_restarted": true
+  },
+  "raw_evidence_path": "/Users/ksap/.local/share/aelev/evidence/translator-mtls-20261113-_ejt87iv/release-v021",
+  "evidence_sha256": {
+    "release-digest.txt": "38a64c09cbae2f55b0242fc3000b828834e55be6e524ca43dbf1ad44c67b4b74",
+    "signature.json": "00a905246b872945b343e01fff8b4e0e52eba0234ba6db1416b3c1e088facb2c",
+    "manifest.json": "9d1929bbf30c510f902b3ff2a80a905025ffe42ec915102d316385c02a9bcd9a",
+    "provenance.json": "974c8313eaaef046650d0f7902fb648f918995bdd340604a51dc2e269a1d2dcd",
+    "sbom.json": "59272ddba090cf35398ce7041680e87fa4c689ac43c65152535c2a74eb531a9f",
+    "supply-chain-verification.json": "a0a3d35ac279f83ce80f95aff88f1e7e80b595956d0b9ac05e51ae82176540be",
+    "security-amd64.json": "fafae6e039fc036ab31899c26d312c9d98379334fadb5b54b10cd24ddc515042",
+    "security-arm64.json": "f1d2c6eaf7533aa4b3571c66b0dd57f176290ba47c5e0a5b4f12d980e7d9f6b6",
+    "vulnerabilities-amd64.json": "785898929c5c5431790b07a2c9b1faa7ae83395768e3ff21bea782f54e4394cb",
+    "vulnerabilities-arm64.json": "fce6b13c76f227a6471d591f0221f127f95ae9d2c166d99e26bdd1d386020d7c",
+    "native-tests.json": "dcefca2b8f15789c66f85a616f3a180b47a97fa09a74b09d23b213f7d6d45d13",
+    "quality-main/quality.json": "c61dd01bff62fc65e5ae7ef131b6984437cefe0607bc020cc2fbf505eababd10",
+    "quality-main/raw.json": "d73418b9a1119b802c543f729c6f18ecd85dfc8f50a917630b589a8e9f28528d",
+    "quality-main/provider.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "startup-failure-classification.json": "8ddc55a949a0748418eb10385ed6a5426ee8c2999e21f49faa321c6ca432da6e",
+    "quality.json": "eb759becb3ab5c32766ed8328a4eeb17eceb6adaea5c1933b0a255e71b8f8527",
+    "network_quality_attempt0.py": "58e66954411b19b729748560dd4235d3b45b8a0f3879f9b846b7a88ff1b0d3bd",
+    "network_quality.py": "224b16723bbb466381122a44b47d562fa236415434a4e7c40127d66633802711"
+  },
+  "working_runtime_observation_sha256": "846b28cb4600522891820dd18f234042d087941ac1f5120cf5056232a8d572af",
+  "remaining_gates": [
+    "SIGNED_NETWORK_WORKER_PAIR",
+    "PERMANENT_DEPLOYMENT_IDENTITIES",
+    "PHYSICAL_MULTIHOST",
+    "FULL_INFRASTRUCTURE_CLEAN_ROOM",
+    "PLATFORM_END_TO_END",
+    "DEPLOYMENT_SITE_ADMISSION"
+  ]
+}

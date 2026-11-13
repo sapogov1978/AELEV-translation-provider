@@ -1,13 +1,12 @@
 # Задачи AELEV Translation Provider
 
-- [ ] Допустить exact v0.2.1 по новым 20 исходным/выходным парам после prompt v2.
+- [x] Проверить exact [v0.2.1](docs/audit/provider-release-v0.2.1-20261113.md): 20 новых переводов, каждый со смысловым review, обе native-архитектуры и mTLS candidate pair.
   [v0.2.0](docs/audit/provider-release-v0.2.0-20261113.json) отклонён по качеству:
   19 смысловых PASS и один FAIL при сохранённых 21 попытке, включая один 503.
 
-Новый mTLS runtime по ADR-0003 требует отдельного допуска; отметки ниже
-относятся к неизменяемому историческому v0.1.1. Открыты exact network worker
-integration, новый security review/release обеих архитектур, bounded quality
-и проверка независимых физических узлов.
+Component release v0.2.1 проверен отдельно. Открыты signed network worker pair,
+permanent deployment identities, физически независимые узлы и platform E2E.
+Отметки исторического checklist ниже относятся к v0.1.1.
 
 До выпуска 0.2.0 выполнена [native arm64-проверка кандидата](docs/audit/provider-network-candidate-20261113.json):
 71 provider test, 34 worker transport tests, раздельные network/TLS volumes,
@@ -36,4 +35,4 @@ same-CA foreign-client denial, смена доверия и ограниченн
 доказательства — [provider-release-v0.1.1-20261111.md](docs/audit/provider-release-v0.1.1-20261111.md).
 Полный инфраструктурный clean-room остаётся отдельным gate.
 
-Текущий статус: `PROVIDER_QUALITY_PASS / SCOPED_IMAGE_SECURITY_PASS / EXACT_UDS_PAIR_PASS / PLATFORM_CLEAN_ROOM_PENDING`.
+Текущий статус v0.2.1: `COMPONENT_RELEASE_VERIFIED / SIGNED_NETWORK_WORKER_PENDING / PHYSICAL_MULTIHOST_PENDING / PLATFORM_CLEAN_ROOM_PENDING`.

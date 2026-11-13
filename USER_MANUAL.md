@@ -133,3 +133,8 @@ exception class. It never records key values, headers, arbitrary upstream
 messages or source/output text. These are private provider logs; the opaque
 port keeps its existing generic technical codes. The initial v0.2.0 503 cannot
 be retrospectively classified from its generic response.
+
+Точный [v0.2.1](docs/audit/provider-release-v0.2.1-20261113.md) проверен отдельно:
+20 mTLS переводов прошли ручной смысловой review, 77 native arm64 tests и оба
+security-профиля. Signed network worker integration и допуск площадки остаются
+отдельными gates; release.json или runtime health не допускают установку сами.
