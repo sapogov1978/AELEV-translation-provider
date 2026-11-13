@@ -48,7 +48,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get purge --yes libsqlite3-0 \
     && groupadd --system --gid 10001 aelev \
     && useradd --system --uid 10001 --gid aelev --home-dir /nonexistent aelev \
-    && install -d --owner=10001 --group=10001 /run/aelev-translator
+    && install -d --owner=10001 --group=10001 /run/aelev-translator \
+    && install -d --owner=10001 --group=10001 --mode=0700 /run/secrets/compute-provider
 WORKDIR /opt/aelev
 COPY --from=dependencies /opt/aelev/.venv ./.venv
 RUN /usr/local/bin/python -m pip uninstall --yes pip setuptools \

@@ -1,7 +1,10 @@
-"""Provider-owned Unix-socket HTTP application."""
+"""Provider-owned opaque HTTP application."""
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Protocol
 
 from fastapi import Body, FastAPI, HTTPException
@@ -14,6 +17,8 @@ from aelev_translation_provider.contract import (
     serialize_success,
 )
 from aelev_translation_provider.engine import ProviderUnavailable
+from aelev_translation_provider.healthcheck import clear_readiness, record_readiness
+from aelev_translation_provider.ingress import BoundedInput
 
 
 class Engine(Protocol):
@@ -25,17 +30,37 @@ class Engine(Protocol):
     ) -> tuple[str, list[str]]: ...
 
 
-def create_app(engine: Engine) -> FastAPI:
+def create_app(engine: Engine, readiness: Callable[[], bool] | None = None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+        async def observe() -> None:
+            while True:
+                if readiness is not None:
+                    record_readiness(engine.ready and readiness())
+                await asyncio.sleep(1)
+
+        observer = asyncio.create_task(observe()) if readiness is not None else None
+        try:
+            yield
+        finally:
+            if observer is not None:
+                observer.cancel()
+                with suppress(asyncio.CancelledError):
+                    await observer
+                clear_readiness()
+
     app = FastAPI(
         title="AELEV opaque translation provider",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
+    app.add_middleware(BoundedInput)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
-        if not engine.ready:
+        if not engine.ready or (readiness is not None and not readiness()):
             raise HTTPException(status_code=503, detail="PROVIDER_NOT_READY")
         return {"status": "ok"}
 

@@ -102,6 +102,7 @@ def evidence(tmp_path: Path) -> tuple[Path, dict[str, Any], list[object]]:
                     "acl_and_blk_id_libraries_not_loaded": True,
                     "perl_archive_tar_absent": True,
                     "empty_fstab": True,
+                    "known_compromised_ca_roots_absent": True,
                     "no_new_privileges": True,
                     "read_only_root": True,
                     "application_sources_sha256": {
@@ -129,6 +130,19 @@ def test_new_cve_blocks_admission(evidence: Any) -> None:
     result = assess(scan, IMAGE, probes, root)
     assert result["status"] == "SECURITY_BLOCKED"
     assert result["unresolved_high_critical_package_findings"] == 1
+
+
+@pytest.mark.parametrize("present", [False, None])
+def test_tls_trust_proof_is_required_for_scoped_admission(
+    evidence: Any, present: bool | None
+) -> None:
+    root, scan, probes = evidence
+    if present is None:
+        probes[0]["execution"].pop("known_compromised_ca_roots_absent")
+    else:
+        probes[0]["execution"]["known_compromised_ca_roots_absent"] = present
+    with pytest.raises(ValueError, match="SECURITY_EXECUTION_PROOF_INCOMPLETE"):
+        assess(scan, IMAGE, probes, root)
 
 
 def test_debian_review_does_not_cover_a_python_package(evidence: Any) -> None:

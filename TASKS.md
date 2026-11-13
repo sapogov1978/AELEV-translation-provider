@@ -1,5 +1,15 @@
 # Задачи AELEV Translation Provider
 
+Новый mTLS runtime по ADR-0003 требует отдельного допуска; отметки ниже
+относятся к неизменяемому историческому v0.1.1. Открыты exact network worker
+integration, новый security review/release обеих архитектур, bounded quality
+и проверка независимых физических узлов.
+
+Для кандидата 0.2.0 выполнена [native arm64-проверка](docs/audit/provider-network-candidate-20261113.json):
+71 provider test, 34 worker transport tests, раздельные network/TLS volumes,
+same-CA foreign-client denial, смена доверия и ограниченный security gate.
+Это ещё не допуск подписанного выпуска, нового worker release или реального inference.
+
 - [x] Проверить точный v0.1.1 на обеих native-архитектурах по ограниченному
   [рассмотренному профилю](docs/audit/provider-release-v0.1.1-20261111.md), сохранив
   сырой scan и неприменимость каждой HIGH/CRITICAL только в этом профиле.

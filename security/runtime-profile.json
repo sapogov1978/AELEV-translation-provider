@@ -1,17 +1,21 @@
 {
   "schema_version": 1,
   "profile": "opaque-python-provider-bookworm-v1",
-  "reviewed_at": "2026-11-10T23:25:15.202345+00:00",
-  "scope": "Default opaque provider entrypoint; non-root UID 10001, read-only root, zero effective capabilities, no-new-privileges. Individual CVE conditions are checked against this exact reviewed source and dependency set. Not general-purpose OS CLI use.",
+  "reviewed_at": "2026-11-13T12:27:12.919334+00:00",
+  "scope": "Default opaque UDS/mTLS provider entrypoint; Python 3.13.7 / Debian Bookworm, UID 10001, read-only root, zero capabilities and no-new-privileges. Current source, native symbol paths, effective CA bundles and CPython TLS conditions are reviewed in docs/audit/runtime-security-20261113.md. Not general-purpose OS CLI use or platform/site admission.",
   "python_version": "3.13.7",
   "application_sources_sha256": {
     "src/aelev_translation_provider/__init__.py": "f9fadd44b9815683e7f60f66a6b078933ae09aa8b9ffa8ec087b313159aea390",
-    "src/aelev_translation_provider/__main__.py": "7772ebe51759454f424d427ecfa4017be0514f90ea9fcbff77eb963326e91003",
-    "src/aelev_translation_provider/app.py": "e0150450b585570217989bbda835157cfc350f4703cb3ba6653e69ca11a946e7",
+    "src/aelev_translation_provider/__main__.py": "38fb6b99c9867c5713dc320cbda5fd69f9b7baaf6b33c08284b710369e459c39",
+    "src/aelev_translation_provider/app.py": "c7084fa59b20368eff9dea60de01f2115c52b58329f2146486e42259b0af6176",
     "src/aelev_translation_provider/contract.py": "a25b54eaae47922ec7deaa1ece06863249de16ce16ca465e7094b79fb6bdb1d6",
     "src/aelev_translation_provider/engine.py": "94c0c972c31eb6bacabfeab35ec784df9556fafc019eedeb9f7a6689d178ab37",
-    "src/aelev_translation_provider/healthcheck.py": "94cd39679cc6d19153c906b57b97a734e536df77c592e0a9b9e7750b1fc0ac7c",
-    "src/aelev_translation_provider/languages.py": "01d5e1484bb391a08bb3bbf1020ee5edb46cd2b71359068650733e86f61c3d3a"
+    "src/aelev_translation_provider/healthcheck.py": "8372ac628f0fd4938eaaf63eaae54a284cc808b24b0090578211e5621ffc682c",
+    "src/aelev_translation_provider/ingress.py": "0aad761ab96460983568dbdcd2416e919029481c780af3ed4f2c06a0ee88f43c",
+    "src/aelev_translation_provider/languages.py": "01d5e1484bb391a08bb3bbf1020ee5edb46cd2b71359068650733e86f61c3d3a",
+    "src/aelev_translation_provider/tls_identity.py": "19d4fd5bb1a00446bbbeb744edb212de1f69990f5a0ec37248e22d32858c87cf",
+    "src/aelev_translation_provider/tls_server.py": "2ac274b0ea5e05d4a210622451a92ed16b42ca58b307e3adc7db23dccb7e185a",
+    "src/aelev_translation_provider/transport.py": "a6a5d55026cdcf19b604aac385702dfb365b267de44cce5aae69af3a73ae6f33"
   },
   "dependency_lock_sha256": "468f7739cba27e6000cec4363aaeb171188317ff146a18b0a5293727a16d7138",
   "provider_lock_sha256": "5f05f887929b0d01e5296b5c0ac3a1539ff1db19323e8dd95d4a3bd89fc876f1",
@@ -34,7 +38,7 @@
     "uvicorn": "0.35.0"
   },
   "gate_sources_sha256": {
-    "tools/provider_security.py": "9b37357e205e933fc16485aa8e296b5915b0f562af09ad411a5811b0bde308dc",
-    "tools/runtime_surface_probe.py": "8ef07fc418786ba3b51efe387a4f275fe10a7eb1bacf20279400f0ca0b3e4282"
+    "tools/provider_security.py": "3aaa2da1a623de6b4024ae96a672e42cef2933be771b3c540a479fa858c2e010",
+    "tools/runtime_surface_probe.py": "3098484a38737b792fb4bba86e1b6430dda456ac152d3f51e01757f36cc81046"
   }
 }

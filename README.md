@@ -2,7 +2,8 @@
 
 Непрозрачный provider перевода для AELEV. Standalone-модели, весов и
 нативного inference runtime в активной поставке больше нет. Provider
-вызывает OpenAI Responses API напрямую по HTTPS с системной проверкой TLS.
+вызывает OpenAI Responses API напрямую по HTTPS с проверкой CA/hostname по
+закреплённому пакету certifi.
 Текущий выбор в [provider.lock.json](provider.lock.json) — `gpt-6.1-sol`.
 
 Подписанный [v0.1.1](docs/audit/provider-release-v0.1.1-20261111.md) проверен
@@ -10,7 +11,12 @@
 live-переводов с отдельной проверкой смысла и UDS-проверку с exact worker.
 Полный инфраструктурный clean-room и допуск площадки остаются отдельными gates.
 
-Translator передаёт по Unix socket только текст и пару языков.
+Новый сетевой режим по [ADR-0003](docs/adr/00-PROVIDER-20261113-0003-independent-mtls-transport.md)
+позволяет размещать Translator worker и provider независимо через HTTPS/mTLS;
+UDS сохраняется для совместимости. Выпуск v0.1.1 выше не является допуском
+нового сетевого runtime.
+
+Translator передаёт через opaque-порт только текст и пару языков.
 Provider обогащает запрос provider-owned prompt: модель молча
 определяет предметную область всего сегмента и сохраняет
 терминологию, регистр, единицы, имена, код и межфразовые связи.
@@ -19,7 +25,7 @@ Provider обогащает запрос provider-owned prompt: модель м�
 
 ```mermaid
 flowchart LR
-    T[translator-service worker] -->|opaque HTTP v1 over UDS| P[translation provider]
+    T[translator-service worker] -->|opaque HTTP v1 over mTLS| P[translation provider]
     P -->|bounded HTTPS POST| O[OpenAI Responses API]
     P -. translated text + bounded warnings .-> T
 ```
@@ -51,5 +57,6 @@ docker build --target runtime .
 Build не запускает container и не требует API key. Для локальной
 подготовки замените плейсхолдер в игнорируемом `.env.local`; этот же файл
 монтируется read-only как provider credential и не коммитится. После подготовки
-runtime-сети действующий OpenAI API key — единственный отсутствующий локальный
-ввод для рабочего запуска.
+runtime-сети действующий OpenAI API key нужен для реального перевода;
+независимый сетевой запуск дополнительно требует явных адресов и TLS identities
+по [руководству](USER_MANUAL.md#независимый-сетевой-запуск).

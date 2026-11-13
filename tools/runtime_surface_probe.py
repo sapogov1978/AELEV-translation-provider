@@ -87,6 +87,9 @@ def main() -> None:
                 "PYTHONSTARTUP",
                 "PYTHONHOME",
                 "AELEV_PROVIDER_INSECURE_HTTP",
+                "SSLKEYLOGFILE",
+                "SSL_CERT_FILE",
+                "SSL_CERT_DIR",
             )
         )
         or environment.get("PYTHONOPTIMIZE", "0") != "0"

@@ -23,6 +23,41 @@ live-запуском, проверкой смысла, обеих native-арх
 предметными данными. Она предоставляет только generic provider secret mount и
 исходящее сетевое подключение.
 
+## Независимый сетевой запуск
+
+Worker и provider получают раздельные локальные TLS-каталоги и собственные ключи.
+Provider читает `/run/secrets/compute-provider/transport.json`:
+
+```json
+{"schema_version":1,"transport":"mtls","listen_host":"0.0.0.0","listen_port":18487}
+```
+
+В том же read-only каталоге `identity.json` содержит ровно `schema_version=1`,
+`environment` (`local`, `test`, `production`), `delivery` и точные
+`server_spiffe_id`/`client_spiffe_id` под `/translator-service/` одного trust domain.
+Например, роли `/translator-service/provider/primary` и
+`/translator-service/worker/screening` задаются оператором явно, без discovery.
+Это workload identities; replicas получают разные leaf certificates и ключи.
+
+В production `delivery=spire-file-v1`: SPIRE доставляет собственные
+`current.json`, `generations/<digest>/tls.pem` и `bundle.pem` с актуальным
+маркером, serial, сроком и digest. Private key доступен только своему runtime;
+корневые/issuer keys не монтируются. Неактуальная доставка закрывает соединение.
+`pem-files-v1` разрешён только в local/test: server читает `server.crt`,
+`server.key` (mode 0600) и `client-ca.crt`. Самоподписанный local/test CA
+не является production-допуском.
+
+Provider слушает указанный адрес/порт; владелец установки публикует его на
+достижимом узле и настраивает DNS/SAN. Worker проверяет CA, hostname и exact
+provider identity до отправки текста, используя собственный client key.
+Для разных хостов socket/SVID volumes и соседние исходники не нужны.
+Конфигурация не содержит API key, model ID или prompt; provider credential
+остаётся отдельным прежним mount. HTTP fallback запрещён.
+
+Без transport/identity configuration прежний UDS-запуск совместим.
+Присутствующая неверная конфигурация или identity без transport.json
+завершает запуск с `PROVIDER_TRANSPORT_CONFIG_INVALID`.
+
 ## Проверка без key
 
 Требуются Python 3.13, Poetry 2.2.1 и Docker с BuildKit:
@@ -66,8 +101,9 @@ Healthcheck не заменяет live smoke: он подтверждает то
 2. Добавьте запись в `CHANGELOG.md` и выполните все проверки.
 3. Смена model ID не делается runtime environment override: нужны новый
    lock, representative evals, image digest и admission.
-4. Создайте подписанный tag `vX.Y.Z`; workflow публикует точный
-   GHCR digest с SBOM, provenance и keyless signature.
+4. Создайте аннотированный version tag `vX.Y.Z`; workflow подписывает точный
+   GHCR image digest, сохраняя SBOM, provenance и keyless signature. Подпись
+   проверяется у image digest; version tag не является его заменой.
 5. В подготовленном Platform clean-room запустите
    `tools/release_quality_smoke.py` против UDS exact digest. Repository workflow
    не создаёт и не хранит API key.
